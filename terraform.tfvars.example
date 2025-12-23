@@ -1,0 +1,10 @@
+# OVH Configuration
+ovh_endpoint = "ovh-eu"  # Change to your OVH endpoint (ovh-eu, ovh-ca, ovh-us, etc.)
+
+# Server Configuration
+service_name = "ns123456.ip-xx-xx-xx.eu"  # Replace with your actual OVH server service name
+project_name = "talos01"
+
+# Server Management
+monitoring_enabled = true  # Enable/disable OVH monitoring
+server_state       = "ok"  # Server state (ok, disabled, etc.)
