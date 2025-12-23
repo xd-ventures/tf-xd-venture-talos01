@@ -135,7 +135,7 @@ terraform apply
 After applying, Terraform will output:
 
 - `server_id`: The service name/ID of the server
-- `server_display_name`: The display name
+- `server_name`: The name of the bare metal server
 - `server_state`: Current state of the server
 - `server_ip`: IP address of the server
 
