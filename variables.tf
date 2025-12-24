@@ -4,8 +4,8 @@ variable "ovh_endpoint" {
   default     = "ovh-eu"
 }
 
-variable "service_name" {
-  description = "The service name of the OVH bare metal server"
+variable "ovh_subsidiary" {
+  description = "OVH subsidiary where the server was ordered (e.g., FR, DE, ES, GB, CA, US)"
   type        = string
 }
 

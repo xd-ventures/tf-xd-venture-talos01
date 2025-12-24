@@ -74,13 +74,20 @@ cp terraform.tfvars.example terraform.tfvars
 nano terraform.tfvars
 ```
 
-### 2. Find Your Server Service Name
+### 2. Find Your Server Details
 
-To find your server's service name, you can:
+You'll need:
 
+**Service Name** (for import command): Find it in the OVH control panel or via API
 - Check the OVH control panel: Server section will show the service name (e.g., `ns123456.ip-xx-xx-xx.eu`)
 - Use the OVH API: `GET /dedicated/server`
 - Use the OVH CLI if installed
+
+**OVH Subsidiary** (in terraform.tfvars): The region where your server was originally ordered
+- Common values: `FR` (France), `DE` (Germany), `ES` (Spain), `GB` (UK), `CA` (Canada), `US` (USA)
+- Check your OVH account region or the server's control panel URL (e.g., `ovh.com/fr/` = FR, `ovh.de/` = DE)
+- If unsure, it's typically the country code of your OVH subsidiary
+- Configure this in your `terraform.tfvars` file
 
 ### 3. Initialize OpenTofu
 
@@ -90,17 +97,48 @@ tofu init
 
 ### 4. Import Existing Server
 
-Since the server is already deployed, import the management resource into OpenTofu state:
+OpenTofu provides two ways to import existing infrastructure:
+
+#### Option A: Using Import Blocks (Recommended - Auto-generates Config)
+
+1. **Edit `import.tf`** and replace the service name with your actual server's service name:
+
+```hcl
+import {
+  to = ovh_dedicated_server.talos01
+  id = "ns3094887.ip-162-19-61.eu"  # Replace with YOUR service name
+}
+```
+
+2. **Run plan with config generation**:
+
+```bash
+tofu plan -generate-config-out=generated_server.tf
+```
+
+This will:
+- Import the server into OpenTofu state
+- Generate `generated_server.tf` with the complete resource configuration
+- Show you what will be managed
+
+3. **Review and merge**:
+- Check `generated_server.tf` to see all server attributes
+- Merge any desired attributes into `main.tf`
+- Delete `import.tf` and `generated_server.tf` once complete
+
+#### Option B: Manual Import
+
+If you prefer the traditional import:
 
 ```bash
 # Replace <service_name> with your actual OVH server service name
-tofu import ovh_dedicated_server_update.talos01 <service_name>
+tofu import ovh_dedicated_server.talos01 <service_name>
 
 # Example:
-# tofu import ovh_dedicated_server_update.talos01 ns123456.ip-192-168-1-1.eu
+# tofu import ovh_dedicated_server.talos01 ns3094887.ip-162-19-61.eu
 ```
 
-**Note**: The data source (`data.ovh_dedicated_server.talos01`) does not need to be imported as it queries the existing infrastructure directly.
+Then manually update `main.tf` with any additional attributes you want to manage.
 
 ### 5. Verify Configuration
 
@@ -135,9 +173,10 @@ tofu apply
 After applying, OpenTofu will output:
 
 - `server_id`: The service name/ID of the server
-- `server_name`: The name of the bare metal server
+- `server_name`: The display name of the bare metal server
 - `server_state`: Current state of the server
 - `server_ip`: IP address of the server
+- `server_monitoring`: Monitoring status of the server
 
 ## Future Enhancements
 
@@ -164,6 +203,14 @@ If the import fails:
 - Verify the service name is correct
 - Check that your API credentials have access to the server
 - Ensure the server exists in your OVH account
+
+### Resource Errors
+
+If you encounter errors during plan/apply:
+- Verify the service name is correct in your `terraform.tfvars`
+- Check that your API credentials have the necessary permissions
+- Verify that the server state values match what's configured in OVH
+- If using auto-generated config, review the `generated.tf` file for all available attributes
 
 ## Security Notes
 
