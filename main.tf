@@ -6,7 +6,7 @@ data "ovh_dedicated_server" "talos01" {
 
 # Resource to manage the existing server's updateable properties
 # This resource needs to be imported using:
-# terraform import ovh_dedicated_server_update.talos01 <service_name>
+# tofu import ovh_dedicated_server_update.talos01 <service_name>
 resource "ovh_dedicated_server_update" "talos01" {
   service_name = var.service_name
   boot_id      = data.ovh_dedicated_server.talos01.boot_id

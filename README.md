@@ -1,12 +1,12 @@
 # tf-xd-venture-talos01
 
-Terraform configuration for managing OVH bare metal server for Talos OS deployment.
+OpenTofu configuration for managing OVH bare metal server for Talos OS deployment.
 
 ## Prerequisites
 
-- Terraform >= 1.0
+- OpenTofu >= 1.6.0
 - OVH account with API credentials
-- An existing OVH bare metal server (will be imported into Terraform state)
+- An existing OVH bare metal server (will be imported into OpenTofu state)
 
 ## OVH Authentication Setup
 
@@ -20,8 +20,8 @@ You need to create API credentials for OVH. Follow these steps:
    - US: https://api.us.ovhcloud.com/createToken/
 
 2. Fill in the form:
-   - **Application name**: `terraform-talos01` (or any descriptive name)
-   - **Application description**: `Terraform management for Talos server`
+   - **Application name**: `opentofu-talos01` (or any descriptive name)
+   - **Application description**: `OpenTofu management for Talos server`
    - **Validity**: Choose duration (or "Unlimited")
    - **Rights**: Set the following permissions:
      - `GET /dedicated/server/*`
@@ -59,7 +59,7 @@ application_secret=your_application_secret
 consumer_key=your_consumer_key
 ```
 
-Then reference it in your Terraform provider configuration.
+Then reference it in your OpenTofu provider configuration.
 
 ## Getting Started
 
@@ -82,22 +82,22 @@ To find your server's service name, you can:
 - Use the OVH API: `GET /dedicated/server`
 - Use the OVH CLI if installed
 
-### 3. Initialize Terraform
+### 3. Initialize OpenTofu
 
 ```bash
-terraform init
+tofu init
 ```
 
 ### 4. Import Existing Server
 
-Since the server is already deployed, import the management resource into Terraform state:
+Since the server is already deployed, import the management resource into OpenTofu state:
 
 ```bash
 # Replace <service_name> with your actual OVH server service name
-terraform import ovh_dedicated_server_update.talos01 <service_name>
+tofu import ovh_dedicated_server_update.talos01 <service_name>
 
 # Example:
-# terraform import ovh_dedicated_server_update.talos01 ns123456.ip-192-168-1-1.eu
+# tofu import ovh_dedicated_server_update.talos01 ns123456.ip-192-168-1-1.eu
 ```
 
 **Note**: The data source (`data.ovh_dedicated_server.talos01`) does not need to be imported as it queries the existing infrastructure directly.
@@ -105,8 +105,8 @@ terraform import ovh_dedicated_server_update.talos01 <service_name>
 ### 5. Verify Configuration
 
 ```bash
-# Check what Terraform sees
-terraform plan
+# Check what OpenTofu sees
+tofu plan
 
 # The plan should show no changes if the import was successful
 # and your configuration matches the server state
@@ -115,14 +115,14 @@ terraform plan
 ### 6. Apply Changes
 
 ```bash
-terraform apply
+tofu apply
 ```
 
 ## Project Structure
 
 ```
 .
-├── versions.tf              # Terraform and provider version requirements
+├── versions.tf              # OpenTofu and provider version requirements
 ├── variables.tf             # Input variables
 ├── main.tf                  # Main infrastructure resources (OVH server)
 ├── outputs.tf               # Output values
@@ -132,7 +132,7 @@ terraform apply
 
 ## Outputs
 
-After applying, Terraform will output:
+After applying, OpenTofu will output:
 
 - `server_id`: The service name/ID of the server
 - `server_name`: The name of the bare metal server
@@ -174,6 +174,6 @@ If the import fails:
 
 ## Resources
 
-- [OVH Terraform Provider Documentation](https://registry.terraform.io/providers/ovh/ovh/latest/docs)
+- [OVH OpenTofu Provider Documentation](https://registry.terraform.io/providers/ovh/ovh/latest/docs)
 - [OVH API Documentation](https://api.ovh.com/)
-- [Terraform Documentation](https://www.terraform.io/docs)
+- [OpenTofu Documentation](https://opentofu.org/docs)
