@@ -1,11 +1,11 @@
-# This file is maintained automatically by "terraform init".
+# This file is maintained automatically by "tofu init".
 # Manual edits may be lost in future updates.
 
-provider "registry.terraform.io/ovh/ovh" {
+provider "registry.opentofu.org/ovh/ovh" {
   version     = "0.51.0"
-  constraints = "~> 0.36"
+  constraints = "~> 0.51"
   hashes = [
-    "h1:WM9PK2XT3/6RxEADkPOPGCL6by7CO1PawcSLzlwO4HE=",
+    "h1:mfUEYqr5G9UW/cobcRneQhUFvJvGNjcZHnHCdF2fAlA=",
     "zh:13c2e4ea4a0f8348f7556862df5ff17733d06cf898c2a646f0c235e4fa87d210",
     "zh:52db2b0371ffaf52cfdacbf8fa6e931c35b5b2c8a65e8f3cb70155f33beda85f",
     "zh:5824a22dd83699f78a4d7689eb905f895999491debb730ba2d15e0f0082c66b0",
