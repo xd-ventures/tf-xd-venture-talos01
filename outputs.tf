@@ -1,3 +1,4 @@
+# Server Outputs
 output "server_id" {
   description = "The service name/ID of the bare metal server"
   value       = ovh_dedicated_server.talos01.service_name
@@ -18,22 +19,20 @@ output "server_ip" {
   value       = ovh_dedicated_server.talos01.ip
 }
 
-output "server_monitoring" {
-  description = "Monitoring status of the server"
-  value       = ovh_dedicated_server.talos01.monitoring
+# Talos Configuration Outputs
+output "talos_schematic_id" {
+  description = "The Talos image factory schematic ID"
+  value       = talos_image_factory_schematic.this.id
 }
-
-# Talos OS Outputs
 
 output "talos_image_url" {
-  description = "The qcow2 image URL from Talos image factory"
-  value       = replace(data.talos_image_factory_urls.this.urls.disk_image, ".raw.zst", ".qcow2")
+  description = "The Talos image URL being deployed"
+  value       = local.image_url
 }
 
-output "talos_machine_config" {
-  description = "Base64 encoded machine configuration for Talos OS"
-  value       = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
-  sensitive   = true
+output "talos_installer_image" {
+  description = "The Talos installer image for upgrades"
+  value       = "factory.talos.dev/installer/${talos_image_factory_schematic.this.id}:${var.talos_version}"
 }
 
 output "cluster_endpoint" {
@@ -41,10 +40,27 @@ output "cluster_endpoint" {
   value       = var.cluster_endpoint
 }
 
-# Note: talosconfig output removed - the attribute may not be available in the data source
-# Use talos_machine_secrets resource or talos_client_configuration resource separately if needed
-# output "talosconfig" {
-#   description = "Talos client configuration for talosctl access"
-#   value       = data.talos_machine_configuration.controlplane.client_configuration
-#   sensitive   = true
-# }
+# Sensitive outputs - use with care
+output "talos_machine_config" {
+  description = "Base64 encoded machine configuration (for manual apply if needed)"
+  value       = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
+  sensitive   = true
+}
+
+#output "talosconfig" {
+#  description = "Talos client configuration for talosctl"
+#  value       = talos_machine_secrets.this.client_configuration.talos_config
+#  sensitive   = true
+#}
+
+# Debug outputs - useful for troubleshooting
+output "debug_image_factory_urls" {
+  description = "All available URLs from image factory"
+  value = {
+    disk_image    = data.talos_image_factory_urls.this.urls.disk_image
+    iso           = try(data.talos_image_factory_urls.this.urls.iso, "N/A")
+    installer     = try(data.talos_image_factory_urls.this.urls.installer, "N/A")
+    kernel        = try(data.talos_image_factory_urls.this.urls.kernel, "N/A")
+    initramfs     = try(data.talos_image_factory_urls.this.urls.initramfs, "N/A")
+  }
+}

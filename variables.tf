@@ -18,11 +18,11 @@ variable "project_name" {
 variable "monitoring_enabled" {
   description = "Enable or disable OVH monitoring for the server"
   type        = bool
-  default     = true
+  default     = false  # Typically disabled for Talos as it doesn't respond to OVH monitoring
 }
 
 variable "server_state" {
-  description = "Desired state of the server (active, disabled, etc.)"
+  description = "Desired state of the server (ok, disabled, etc.)"
   type        = string
   default     = "ok"
 }
@@ -45,7 +45,7 @@ variable "cluster_endpoint" {
 }
 
 variable "talos_extensions" {
-  description = "List of Talos system extensions to include from image factory"
+  description = "List of additional Talos system extensions to include from image factory"
   type        = list(string)
   default     = []
 }
@@ -54,4 +54,25 @@ variable "architecture" {
   description = "CPU architecture for Talos OS image"
   type        = string
   default     = "amd64"
+}
+
+variable "install_disk" {
+  description = "Disk device to install Talos on (e.g., /dev/sda, /dev/nvme0n1)"
+  type        = string
+  default     = "/dev/sda"
+}
+
+variable "use_raw_image" {
+  description = "Use raw image format instead of qcow2 (recommended for OVH BYOI)"
+  type        = bool
+  default     = true  # Raw images are generally more reliable with OVH BYOI
+}
+
+variable "extra_kernel_args" {
+  description = "Additional kernel arguments to pass to Talos (beyond the default for the platform)"
+  type        = list(string)
+  default     = []
+  # Examples:
+  # - "console=ttyS0" for serial console
+  # - "net.ifnames=0" for classic network interface naming
 }

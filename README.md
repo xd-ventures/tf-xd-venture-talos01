@@ -1,226 +1,175 @@
-# tf-xd-venture-talos01
+# Talos OS on OVH Bare Metal - Fixed Configuration
 
-OpenTofu configuration for managing OVH bare metal server for Talos OS deployment.
+## Root Cause Analysis
 
-## Prerequisites
+The **"failed to determine platform"** error and reboot loop was caused by a **platform mismatch** between what the image expects and what the data source was configured to fetch.
 
-- OpenTofu >= 1.6.0
-- OVH account with API credentials
-- An existing OVH bare metal server (will be imported into OpenTofu state)
-
-## OVH Authentication Setup
-
-### 1. Create OVH API Credentials
-
-You need to create API credentials for OVH. Follow these steps:
-
-1. Go to the OVH API token creation page for your region:
-   - EU: https://eu.api.ovh.com/createToken/
-   - CA: https://ca.api.ovh.com/createToken/
-   - US: https://api.us.ovhcloud.com/createToken/
-
-2. Fill in the form:
-   - **Application name**: `opentofu-talos01` (or any descriptive name)
-   - **Application description**: `OpenTofu management for Talos server`
-   - **Validity**: Choose duration (or "Unlimited")
-   - **Rights**: Set the following permissions:
-     - `GET /dedicated/server/*`
-     - `PUT /dedicated/server/*`
-     - `POST /dedicated/server/*`
-     - `DELETE /dedicated/server/*` (optional, for full management)
-
-3. Click "Create keys" and save the credentials:
-   - Application Key
-   - Application Secret
-   - Consumer Key
-
-### 2. Configure Environment Variables
-
-Set the following environment variables with your OVH credentials:
-
-```bash
-export OVH_ENDPOINT="ovh-eu"  # or ovh-ca, ovh-us, etc.
-export OVH_APPLICATION_KEY="your_application_key"
-export OVH_APPLICATION_SECRET="your_application_secret"
-export OVH_CONSUMER_KEY="your_consumer_key"
-```
-
-**Tip**: Add these to your `~/.bashrc`, `~/.zshrc`, or create a `.envrc` file (if using direnv) to persist the configuration.
-
-### 3. Alternative: Using Configuration File
-
-Instead of environment variables, you can create an `ovh.conf` file (but this is less secure):
-
-```ini
-[default]
-endpoint=ovh-eu
-application_key=your_application_key
-application_secret=your_application_secret
-consumer_key=your_consumer_key
-```
-
-Then reference it in your OpenTofu provider configuration.
-
-## Getting Started
-
-### 1. Clone and Configure
-
-```bash
-# Copy the example tfvars file
-cp terraform.tfvars.example terraform.tfvars
-
-# Edit terraform.tfvars with your server details
-# Update the service_name with your actual OVH server service name
-nano terraform.tfvars
-```
-
-### 2. Find Your Server Details
-
-You'll need:
-
-**Service Name** (for import command): Find it in the OVH control panel or via API
-- Check the OVH control panel: Server section will show the service name (e.g., `ns123456.ip-xx-xx-xx.eu`)
-- Use the OVH API: `GET /dedicated/server`
-- Use the OVH CLI if installed
-
-**OVH Subsidiary** (in terraform.tfvars): The region where your server was originally ordered
-- Common values: `FR` (France), `DE` (Germany), `ES` (Spain), `GB` (UK), `CA` (Canada), `US` (USA)
-- Check your OVH account region or the server's control panel URL (e.g., `ovh.com/fr/` = FR, `ovh.de/` = DE)
-- If unsure, it's typically the country code of your OVH subsidiary
-- Configure this in your `terraform.tfvars` file
-
-### 3. Initialize OpenTofu
-
-```bash
-tofu init
-```
-
-### 4. Import Existing Server
-
-OpenTofu provides two ways to import existing infrastructure:
-
-#### Option A: Using Import Blocks (Recommended - Auto-generates Config)
-
-1. **Edit `import.tf`** and replace the service name with your actual server's service name:
+### Original Issue in `talos.tf`:
 
 ```hcl
-import {
-  to = ovh_dedicated_server.talos01
-  id = "ns3094887.ip-162-19-61.eu"  # Replace with YOUR service name
+# WRONG - This fetches metal-amd64.raw.zst image
+data "talos_image_factory_urls" "this" {
+  platform = "metal"  # <-- This was the problem!
 }
 ```
 
-2. **Run plan with config generation**:
+The `metal` platform image requires the `talos.platform=metal` kernel argument to be explicitly passed, OR it tries to auto-detect the platform from hardware/hypervisor signatures. On OVH bare metal with BYOI, this auto-detection fails.
 
-```bash
-tofu plan -generate-config-out=generated_server.tf
+### The Fix:
+
+```hcl
+# CORRECT - This fetches nocloud-amd64.raw.xz image
+data "talos_image_factory_urls" "this" {
+  platform = "nocloud"  # Platform is baked into the image
+}
 ```
 
-This will:
-- Import the server into OpenTofu state
-- Generate `generated_server.tf` with the complete resource configuration
-- Show you what will be managed
+The `nocloud` platform image has `talos.platform=nocloud` baked in and knows how to read configuration from cloud-init style config drives - which is exactly what OVH's `config_drive_user_data` provides!
 
-3. **Review and merge**:
-- Check `generated_server.tf` to see all server attributes
-- Merge any desired attributes into `main.tf`
-- Delete `import.tf` and `generated_server.tf` once complete
+## All Issues Fixed
 
-#### Option B: Manual Import
+| Issue | Original | Fixed |
+|-------|----------|-------|
+| Platform | `metal` | `nocloud` |
+| Bootloader | `sd-boot` | GRUB (default) |
+| EFI Path | `/EFI/Linux/Talos-v1.12.0.efi` | `\EFI\BOOT\BOOTX64.EFI` |
+| Extra Kernel Args | `talos.platform=nocloud` (redundant) | Removed (baked into image) |
+| Image URL | `.raw.zst` → `.qcow2` replace | Proper format handling |
 
-If you prefer the traditional import:
+## How Talos nocloud Platform Works
 
-```bash
-# Replace <service_name> with your actual OVH server service name
-tofu import ovh_dedicated_server.talos01 <service_name>
+1. **Boot**: Server boots from the Talos nocloud image
+2. **Platform Detection**: Talos sees `talos.platform=nocloud` and looks for config drive
+3. **Config Drive**: OVH creates a config drive partition with your `config_drive_user_data`
+4. **Configuration**: Talos reads machine config from the config drive as `user-data`
+5. **Installation**: Talos installs itself to disk with your configuration
 
-# Example:
-# tofu import ovh_dedicated_server.talos01 ns3094887.ip-162-19-61.eu
+## Files Overview
+
+```
+.
+├── main.tf           # OVH server + reinstall task with BYOI
+├── talos.tf          # Talos schematic, image URLs, machine config
+├── variables.tf      # Input variables
+├── terraform.tfvars  # Your configuration values
+├── versions.tf       # Provider versions
+└── outputs.tf        # Outputs including debug info
 ```
 
-Then manually update `main.tf` with any additional attributes you want to manage.
+## Usage
 
-### 5. Verify Configuration
+### 1. Update `terraform.tfvars`
+
+```hcl
+ovh_subsidiary   = "FR"                              # Your OVH region
+talos_version    = "v1.12.0"                         # Talos version
+cluster_name     = "talos-xd-venture"                # Cluster name
+cluster_endpoint = "https://YOUR_SERVER_IP:6443"    # Replace with actual IP
+install_disk     = "/dev/sda"                        # Or /dev/nvme0n1
+```
+
+### 2. Initialize and Plan
 
 ```bash
-# Check what OpenTofu sees
+tofu init
 tofu plan
-
-# The plan should show no changes if the import was successful
-# and your configuration matches the server state
 ```
 
-### 6. Apply Changes
+### 3. Check the Image URL
+
+Before applying, verify the image URL looks correct:
+
+```bash
+tofu plan -out=plan.tfplan
+tofu show -json plan.tfplan | jq '.planned_values.outputs.talos_image_url.value'
+```
+
+Expected URL format:
+```
+https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/nocloud-amd64.raw.xz
+```
+
+NOT:
+```
+https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/metal-amd64.raw.zst
+```
+
+### 4. Apply
 
 ```bash
 tofu apply
 ```
 
-## Project Structure
+### 5. After Installation
 
+Once the server reboots with Talos, use `talosctl` to interact:
+
+```bash
+# Get the talosconfig
+tofu output -raw talosconfig > talosconfig
+
+# Set up talosctl
+export TALOSCONFIG=./talosconfig
+talosctl config endpoint <server-ip>
+talosctl config node <server-ip>
+
+# Check status
+talosctl health --wait-timeout 10m
+
+# Bootstrap the cluster (only once!)
+talosctl bootstrap
+
+# Get kubeconfig
+talosctl kubeconfig ./kubeconfig
 ```
-.
-├── versions.tf              # OpenTofu and provider version requirements
-├── variables.tf             # Input variables
-├── main.tf                  # Main infrastructure resources (OVH server)
-├── outputs.tf               # Output values
-├── terraform.tfvars.example # Example variable values (copy to terraform.tfvars)
-└── README.md               # This file
-```
-
-## Outputs
-
-After applying, OpenTofu will output:
-
-- `server_id`: The service name/ID of the server
-- `server_name`: The display name of the bare metal server
-- `server_state`: Current state of the server
-- `server_ip`: IP address of the server
-- `server_monitoring`: Monitoring status of the server
-
-## Future Enhancements
-
-This is a basic stub for OVH server management. Future additions may include:
-
-- Talos OS provider integration for OS deployment and management
-- Network configuration
-- Backup configuration
-- Monitoring setup
-- Additional server management features
 
 ## Troubleshooting
 
-### Authentication Errors
+### Still seeing "failed to determine platform"?
 
-If you get authentication errors:
-- Verify your environment variables are set correctly
-- Check that your API credentials have the necessary permissions
-- Ensure you're using the correct OVH endpoint for your region
+1. **Verify the image URL** in Terraform output contains `nocloud-amd64`, not `metal-amd64`
 
-### Import Errors
+2. **Check schematic** doesn't override platform:
+   ```bash
+   tofu state show talos_image_factory_schematic.this
+   ```
 
-If the import fails:
-- Verify the service name is correct
-- Check that your API credentials have access to the server
-- Ensure the server exists in your OVH account
+3. **Try manual test** - download the image and verify:
+   ```bash
+   # Get the URL from terraform output
+   URL=$(tofu output -raw talos_image_url)
+   
+   # This should return nocloud-amd64 in the filename
+   echo $URL
+   ```
 
-### Resource Errors
+### Can't reach the server after boot?
 
-If you encounter errors during plan/apply:
-- Verify the service name is correct in your `terraform.tfvars`
-- Check that your API credentials have the necessary permissions
-- Verify that the server state values match what's configured in OVH
-- If using auto-generated config, review the `generated.tf` file for all available attributes
+1. **Check OVH KVM/IPMI console** - Talos should show its dashboard
+2. **Verify network config** - Talos nocloud will use DHCP by default
+3. **Check cluster_endpoint** - make sure it matches the server's actual IP
 
-## Security Notes
+### Image download fails?
 
-- **Never commit** `terraform.tfvars` or any file containing credentials
-- Always use environment variables or secure secret management for API credentials
-- The `.gitignore` file is configured to exclude sensitive files
-- Regularly rotate your API keys
+The Image Factory URL format for nocloud is:
+- Raw: `https://factory.talos.dev/image/{schematic_id}/{version}/nocloud-amd64.raw.xz`
+- QCOW2: `https://factory.talos.dev/image/{schematic_id}/{version}/nocloud-amd64.qcow2`
 
-## Resources
+If raw.xz doesn't work, try setting `use_raw_image = false` to use qcow2.
 
-- [OVH OpenTofu Provider Documentation](https://registry.terraform.io/providers/ovh/ovh/latest/docs)
-- [OVH API Documentation](https://api.ovh.com/)
-- [OpenTofu Documentation](https://opentofu.org/docs)
+## Alternative: Using metal Platform with Explicit Config
+
+If you really need to use the `metal` platform (for some reason), you'd need to:
+
+1. Use `platform = "metal"` in the data source
+2. Pass `talos.config=https://your-server.com/config.yaml` as kernel argument
+3. Host the machine config on an accessible HTTP server
+
+This is more complex and requires external config hosting, which is why `nocloud` is recommended for OVH BYOI.
+
+## References
+
+- [Talos nocloud Platform Documentation](https://www.talos.dev/v1.12/talos-guides/install/cloud-platforms/nocloud/)
+- [Talos Image Factory](https://factory.talos.dev/)
+- [OVH BYOI Documentation](https://help.ovhcloud.com/csm/en-dedicated-servers-bringyourownimage)
+- [Terraform Talos Provider](https://registry.terraform.io/providers/siderolabs/talos/latest/docs)
