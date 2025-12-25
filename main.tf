@@ -10,3 +10,21 @@ resource "ovh_dedicated_server" "talos01" {
   # display_name   = "My Server Name"
   # rescue_ssh_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM6SQjc9vOK3yZ6rxrTfeiJ+HaUZvNlHwmcNcJCU1PDS msawicki@ms-c1"
 }
+
+# Talos OS Installation Task
+# This will trigger a server reinstallation with Talos OS using BYOI (Bring Your Own Image)
+resource "ovh_dedicated_server_reinstall_task" "talos" {
+ # lifecycle {
+ #   ignore_changes = all
+ # }
+  service_name = ovh_dedicated_server.talos01.service_name
+  os           = "byoi_64"
+  
+  customizations {
+    hostname                 = var.cluster_name
+    image_url                = replace(data.talos_image_factory_urls.this.urls.disk_image, ".raw.zst", ".qcow2")
+    config_drive_user_data   = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
+    efi_bootloader_path      = "/EFI/Linux/Talos-${var.talos_version}.efi"
+    image_type                = "qcow2"
+  }
+}

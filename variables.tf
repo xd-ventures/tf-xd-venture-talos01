@@ -26,3 +26,32 @@ variable "server_state" {
   type        = string
   default     = "ok"
 }
+
+# Talos OS Configuration Variables
+
+variable "talos_version" {
+  description = "Talos OS version to deploy (e.g., v1.12.0)"
+  type        = string
+}
+
+variable "cluster_name" {
+  description = "Name of the Kubernetes cluster"
+  type        = string
+}
+
+variable "cluster_endpoint" {
+  description = "Kubernetes API endpoint URL (e.g., https://<server-ip>:6443)"
+  type        = string
+}
+
+variable "talos_extensions" {
+  description = "List of Talos system extensions to include from image factory"
+  type        = list(string)
+  default     = []
+}
+
+variable "architecture" {
+  description = "CPU architecture for Talos OS image"
+  type        = string
+  default     = "amd64"
+}

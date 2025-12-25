@@ -9,3 +9,9 @@ project_name = "talos01"
 monitoring_enabled = true  # Enable/disable OVH monitoring
 server_state       = "ok"  # Server state (ok, disabled, etc.)
 
+# Talos OS Configuration
+talos_version    = "v1.12.0"                       # Talos OS version to deploy
+cluster_name     = "talos-xd-venture"              # Kubernetes cluster name
+cluster_endpoint = "https://<server-ip>:6443"      # Replace <server-ip> with actual server IP
+talos_extensions = []                              # List of image factory extensions (e.g., ["qemu-guest-agent", "iscsi-tools"])
+
