@@ -1,23 +1,24 @@
 # Talos OS Configuration Resources
 #
 # CRITICAL FIXES APPLIED:
-# 1. Changed platform from "metal" to "nocloud" - this is the ROOT CAUSE of "failed to determine platform"
+# 1. Changed platform from "metal" to "openstack" - OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
 # 2. Removed sd-boot bootloader - OVH BYOI works better with GRUB (default)
-# 3. Removed extraKernelArgs for talos.platform - not needed when using correct platform image
+# 3. Explicitly set talos.platform=openstack kernel arg to ensure platform detection
 # 4. Fixed image URL construction for correct format
 
 # Generate cluster secrets including PKI
 resource "talos_machine_secrets" "this" {}
 
 # Create image factory schematic with extensions
-# CRITICAL: Explicitly set platform kernel arg to ensure nocloud platform detection
+# CRITICAL: Explicitly set platform kernel arg to ensure openstack platform detection
 resource "talos_image_factory_schematic" "this" {
   schematic = yamlencode({
     customization = {
-      # TESTING: Try openstack platform kernel arg since OVH creates OpenStack format config drive
-      # If openstack platform doesn't work, we'll revert to nocloud and use SMBIOS method
+      # Explicitly set openstack platform kernel arg since OVH creates OpenStack format config drive
+      # OVH BYOI creates config drive with config-2 label and openstack/latest/user_data structure
+      # Talos openstack platform supports this format
       extraKernelArgs = concat(
-        ["talos.platform=openstack"],  # TESTING: OVH creates OpenStack format, try OpenStack platform
+        ["talos.platform=openstack"],  # OVH creates OpenStack format, use OpenStack platform
         var.extra_kernel_args
       )
       systemExtensions = {
@@ -36,15 +37,16 @@ resource "talos_image_factory_schematic" "this" {
 }
 
 # Get Talos OS image factory URLs
-# TESTING: Try "openstack" platform since OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
-# OVH creates OpenStack format: config-2 label with openstack/latest/user_data structure
-# Talos nocloud expects: cidata/CIDATA label with user-data in root
-# If openstack platform doesn't work, we'll need to use SMBIOS method or embed config in image
+# Use "openstack" platform since OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
+# OVH BYOI creates config drive with:
+#   - Volume label: config-2 (OpenStack format)
+#   - File location: openstack/latest/user_data
+# Talos openstack platform supports this format and reads the config from the correct location
 data "talos_image_factory_urls" "this" {
   talos_version = var.talos_version
   schematic_id  = talos_image_factory_schematic.this.id
   architecture  = var.architecture
-  platform      = "openstack"  # TESTING: OVH creates OpenStack format config drive, so try OpenStack platform
+  platform      = "openstack"  # OVH creates OpenStack format config drive, use OpenStack platform
 }
 
 # Local values for endpoint/node extraction and cluster endpoint resolution
