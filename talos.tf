@@ -86,6 +86,28 @@ data "talos_client_configuration" "this" {
   nodes                = local.talos_nodes
 }
 
+# Wait for Talos API to be ready before bootstrapping
+data "talos_cluster_health" "this" {
+  depends_on = [ovh_dedicated_server_reinstall_task.talos]
+
+  client_configuration = talos_machine_secrets.this.client_configuration
+  endpoints            = local.talos_endpoints
+  control_plane_nodes  = local.talos_nodes
+}
+
+# Bootstrap the Talos cluster
+# This initializes etcd and prepares the cluster for Kubernetes
+resource "talos_machine_bootstrap" "this" {
+  depends_on = [
+    ovh_dedicated_server_reinstall_task.talos,
+    data.talos_cluster_health.this,  # Wait for API to be ready
+  ]
+
+  client_configuration = talos_machine_secrets.this.client_configuration
+  node                 = local.cluster_ip
+  endpoint             = local.cluster_ip
+}
+
 # Output the raw disk image URL for debugging
 output "debug_disk_image_url" {
   description = "Raw disk image URL from image factory (for debugging)"

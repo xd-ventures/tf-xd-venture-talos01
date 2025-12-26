@@ -85,6 +85,11 @@ output "config_drive_debug_info" {
   sensitive = true
 }
 
+output "bootstrap_completed" {
+  description = "Indicates when the Talos cluster bootstrap was completed"
+  value       = talos_machine_bootstrap.this.id
+}
+
 # Debug outputs - useful for troubleshooting
 output "debug_image_factory_urls" {
   description = "All available URLs from image factory"
