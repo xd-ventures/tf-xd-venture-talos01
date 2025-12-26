@@ -10,6 +10,10 @@ terraform {
       source  = "siderolabs/talos"
       version = "~> 0.6"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }
 

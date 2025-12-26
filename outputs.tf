@@ -47,11 +47,43 @@ output "talos_machine_config" {
   sensitive   = true
 }
 
-#output "talosconfig" {
-#  description = "Talos client configuration for talosctl"
-#  value       = talos_machine_secrets.this.client_configuration.talos_config
-#  sensitive   = true
-#}
+output "talos_machine_config_raw" {
+  description = "Raw machine configuration YAML (for debugging - shows what goes to config drive)"
+  value       = data.talos_machine_configuration.controlplane.machine_configuration
+  sensitive   = true
+}
+
+output "config_drive_user_data_info" {
+  description = "Information about config drive user-data (size/length for verification). Use 'tofu output config_drive_user_data_info' to view."
+  value = {
+    length_bytes = length(data.talos_machine_configuration.controlplane.machine_configuration)
+    first_100_chars = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, min(100, length(data.talos_machine_configuration.controlplane.machine_configuration)))
+  }
+  sensitive = true
+}
+
+output "talosconfig" {
+  description = "Talos client configuration for talosctl - ready to use YAML file"
+  value       = data.talos_client_configuration.this.talos_config
+  sensitive   = true
+}
+
+output "talosconfig_save_command" {
+  description = "Command to save talosconfig to file"
+  value       = "tofu output -raw talosconfig > talosconfig"
+}
+
+output "config_drive_debug_info" {
+  description = "Debug information about config drive configuration"
+  value = {
+    user_data_length      = length(data.talos_machine_configuration.controlplane.machine_configuration)
+    user_data_starts_with = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, 20)
+    cluster_endpoint      = replace(var.cluster_endpoint, "<server-ip>", try(ovh_dedicated_server.talos01.ip, "127.0.0.1"))
+    metadata_instance_id = var.cluster_name
+    note                  = "OVH creates OpenStack format (config-2, openstack/latest/user_data). Testing if Talos OpenStack platform supports this format."
+  }
+  sensitive = true
+}
 
 # Debug outputs - useful for troubleshooting
 output "debug_image_factory_urls" {

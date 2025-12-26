@@ -27,19 +27,23 @@ locals {
   # OVH can decompress .xz automatically
   image_url_raw = data.talos_image_factory_urls.this.urls.disk_image
   
-  # Option 2: Try qcow2 format (fallback)
-  # Replace .raw.xz with .qcow2 (Image Factory provides both formats)
+  # Option 2: Use qcow2 format (uncompressed)
+  # Talos Image Factory provides uncompressed qcow2 format
+  # OVH BYOI requires uncompressed formats (no .xz or .zst compression)
+  # Pattern: nocloud-amd64.raw.xz or openstack-amd64.raw.xz -> .qcow2
+  # Strategy: Replace the entire suffix (.raw.xz or .raw.zst) with .qcow2
   image_url_qcow2 = replace(
-    replace(data.talos_image_factory_urls.this.urls.disk_image, ".raw.xz", ".qcow2"),
-    ".raw.zst", ".qcow2"
+    replace(
+      data.talos_image_factory_urls.this.urls.disk_image,
+      ".raw.xz", ".qcow2"  # Replace compressed raw (.raw.xz) with uncompressed qcow2
+    ),
+    ".raw.zst", ".qcow2"  # Handle .zst compression format (.raw.zst -> .qcow2)
   )
   
-  # Choose which image type to use
-  use_raw_image = var.use_raw_image
-  
-  # Final image URL based on selection
-  image_url = local.use_raw_image ? local.image_url_raw : local.image_url_qcow2
-  image_type = local.use_raw_image ? "raw" : "qcow2"
+  # OVH BYOI requires image_type to be "qcow2" to match the deployed image format
+  # Always use qcow2 format for OVH BYOI compatibility
+  image_url = local.image_url_qcow2
+  image_type = "qcow2"
   
   # EFI bootloader path for Talos with GRUB (default bootloader)
   # For GRUB-based Talos images:
@@ -47,23 +51,31 @@ locals {
   
   # For sd-boot (unified kernel image) - NOT recommended for OVH BYOI:
   # efi_bootloader_path_sdboot = "\\EFI\\Linux\\Talos-${var.talos_version}.efi"
+  
+  # Hash of image URL and machine config to trigger reinstall when they change
+  # This ensures that changing the platform, image, or config triggers a new reinstallation
+  reinstall_trigger = sha256("${local.image_url_qcow2}${data.talos_machine_configuration.controlplane.machine_configuration}")
+}
+
+# Null resource to trigger reinstall when image URL or machine config changes
+# This is needed because replace_triggered_by only accepts resource references
+resource "null_resource" "reinstall_trigger" {
+  triggers = {
+    image_url = local.image_url_qcow2
+    machine_config_hash = sha256(data.talos_machine_configuration.controlplane.machine_configuration)
+  }
 }
 
 # Talos OS Installation Task
 # This will trigger a server reinstallation with Talos OS using BYOI
 resource "ovh_dedicated_server_reinstall_task" "talos" {
-  # Uncomment if you want to prevent re-installation on every apply
-  # lifecycle {
-  #   ignore_changes = all
-  # }
-  
   service_name = ovh_dedicated_server.talos01.service_name
   os           = "byoi_64"
   
   customizations {
     hostname = var.cluster_name
     
-    # Image URL - using nocloud platform image
+    # Image URL - using platform-specific image (nocloud or openstack)
     image_url = local.image_url
     
     # Image type - must match the actual image format
@@ -73,12 +85,26 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     # OVH requires backslashes for the path
     efi_bootloader_path = local.efi_bootloader_path_grub
     
-    # Config drive user data - this is where Talos nocloud platform
-    # expects to find its machine configuration (as "user-data")
-    # The nocloud platform will read this from the config drive partition
-    config_drive_user_data = base64encode(
-      data.talos_machine_configuration.controlplane.machine_configuration
-    )
+    # Config drive user data - Talos expects raw YAML machine config
+    # OVH will base64 encode this automatically, so we pass it as plain text
+    # Double-encoding would prevent Talos from reading it
+    config_drive_user_data = data.talos_machine_configuration.controlplane.machine_configuration
+    
+    # Config drive metadata - minimal metadata to ensure config drive structure
+    # This helps ensure the config drive is properly mounted and recognized
+    config_drive_metadata = {
+      instance-id    = var.cluster_name
+      local-hostname = var.cluster_name
+    }
+  }
+  
+  # CRITICAL: Force replacement when image URL or machine config changes
+  # This ensures that changing the platform, image, or machine config triggers a new reinstallation
+  # We use null_resource.reinstall_trigger which changes when dependencies change
+  lifecycle {
+    replace_triggered_by = [
+      null_resource.reinstall_trigger,  # Replace when image URL or machine config changes
+    ]
   }
 }
 

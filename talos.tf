@@ -10,13 +10,16 @@
 resource "talos_machine_secrets" "this" {}
 
 # Create image factory schematic with extensions
-# NOTE: We don't need extraKernelArgs for platform when using the correct platform image
+# CRITICAL: Explicitly set platform kernel arg to ensure nocloud platform detection
 resource "talos_image_factory_schematic" "this" {
   schematic = yamlencode({
     customization = {
-      # Only include kernel args that are actually needed beyond the default
-      # The platform is determined by the image type (nocloud), not kernel args
-      extraKernelArgs = var.extra_kernel_args
+      # TESTING: Try openstack platform kernel arg since OVH creates OpenStack format config drive
+      # If openstack platform doesn't work, we'll revert to nocloud and use SMBIOS method
+      extraKernelArgs = concat(
+        ["talos.platform=openstack"],  # TESTING: OVH creates OpenStack format, try OpenStack platform
+        var.extra_kernel_args
+      )
       systemExtensions = {
         officialExtensions = concat(
           [
@@ -33,21 +36,54 @@ resource "talos_image_factory_schematic" "this" {
 }
 
 # Get Talos OS image factory URLs
-# CRITICAL: platform MUST be "nocloud" for OVH config drive to work
+# TESTING: Try "openstack" platform since OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
+# OVH creates OpenStack format: config-2 label with openstack/latest/user_data structure
+# Talos nocloud expects: cidata/CIDATA label with user-data in root
+# If openstack platform doesn't work, we'll need to use SMBIOS method or embed config in image
 data "talos_image_factory_urls" "this" {
   talos_version = var.talos_version
   schematic_id  = talos_image_factory_schematic.this.id
   architecture  = var.architecture
-  platform      = "nocloud"  # FIXED: was "metal" - this caused "failed to determine platform"
+  platform      = "openstack"  # TESTING: OVH creates OpenStack format config drive, so try OpenStack platform
+}
+
+# Local values for endpoint/node extraction and cluster endpoint resolution
+locals {
+  # Replace <server-ip> placeholder with actual server IP from OVH resource
+  # This allows using placeholder in tfvars and auto-resolving to actual IP
+  actual_cluster_endpoint = replace(
+    var.cluster_endpoint,
+    "<server-ip>",
+    try(ovh_dedicated_server.talos01.ip, "127.0.0.1")
+  )
+  
+  # Extract IP address from actual cluster endpoint URL
+  # Format: https://IP:6443 -> IP
+  cluster_ip = replace(
+    replace(local.actual_cluster_endpoint, "https://", ""),
+    ":6443", ""
+  )
+  
+  # Use explicit endpoints/nodes if provided, otherwise use cluster IP
+  talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
+  talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
 }
 
 # Generate machine configuration for control plane node
 data "talos_machine_configuration" "controlplane" {
   cluster_name     = var.cluster_name
   machine_type     = "controlplane"
-  cluster_endpoint = var.cluster_endpoint
+  cluster_endpoint = local.actual_cluster_endpoint
   machine_secrets  = talos_machine_secrets.this.machine_secrets
   talos_version    = var.talos_version
+}
+
+# Generate talosconfig for talosctl
+data "talos_client_configuration" "this" {
+  cluster_name         = var.cluster_name
+  client_configuration = talos_machine_secrets.this.client_configuration
+  endpoints            = local.talos_endpoints
+  nodes                = local.talos_nodes
 }
 
 # Output the raw disk image URL for debugging

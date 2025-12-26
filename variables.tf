@@ -44,6 +44,18 @@ variable "cluster_endpoint" {
   type        = string
 }
 
+variable "talos_endpoints" {
+  description = "List of Talos API endpoints (control plane nodes). If not set, extracted from cluster_endpoint."
+  type        = list(string)
+  default     = []
+}
+
+variable "talos_nodes" {
+  description = "List of Talos node IPs for talosctl operations. If not set, extracted from cluster_endpoint."
+  type        = list(string)
+  default     = []
+}
+
 variable "talos_extensions" {
   description = "List of additional Talos system extensions to include from image factory"
   type        = list(string)
