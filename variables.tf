@@ -75,9 +75,9 @@ variable "install_disk" {
 }
 
 variable "use_raw_image" {
-  description = "Use raw image format instead of qcow2 (recommended for OVH BYOI)"
+  description = "Use raw image format (.raw.xz) instead of qcow2. Default is false (qcow2) as it's been verified to work well with OVH BYOI."
   type        = bool
-  default     = true  # Raw images are generally more reliable with OVH BYOI
+  default     = false  # QCOW2 format is default as it's been tested and works reliably
 }
 
 variable "extra_kernel_args" {

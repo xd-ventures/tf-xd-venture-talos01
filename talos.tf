@@ -53,10 +53,12 @@ data "talos_image_factory_urls" "this" {
 locals {
   # Replace <server-ip> placeholder with actual server IP from OVH resource
   # This allows using placeholder in tfvars and auto-resolving to actual IP
+  # CRITICAL: No fallback to localhost - fail explicitly if IP is unavailable to prevent
+  # baking 127.0.0.1 into the cluster configuration which would make it unreachable
   actual_cluster_endpoint = replace(
     var.cluster_endpoint,
     "<server-ip>",
-    try(ovh_dedicated_server.talos01.ip, "127.0.0.1")
+    ovh_dedicated_server.talos01.ip
   )
   
   # Extract IP address from actual cluster endpoint URL

@@ -78,9 +78,9 @@ output "config_drive_debug_info" {
   value = {
     user_data_length      = length(data.talos_machine_configuration.controlplane.machine_configuration)
     user_data_starts_with = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, 20)
-    cluster_endpoint      = replace(var.cluster_endpoint, "<server-ip>", try(ovh_dedicated_server.talos01.ip, "127.0.0.1"))
+    cluster_endpoint      = replace(var.cluster_endpoint, "<server-ip>", ovh_dedicated_server.talos01.ip)
     metadata_instance_id = var.cluster_name
-    note                  = "OVH creates OpenStack format (config-2, openstack/latest/user_data). Testing if Talos OpenStack platform supports this format."
+    note                  = "OVH creates OpenStack format (config-2, openstack/latest/user_data). Talos OpenStack platform supports this format."
   }
   sensitive = true
 }

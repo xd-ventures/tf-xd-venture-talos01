@@ -17,21 +17,23 @@ resource "ovh_dedicated_server" "talos01" {
 # Local values for image URL construction
 locals {
   # The disk_image URL from the data source will be something like:
-  # https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/nocloud-amd64.raw.xz
+  # https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/openstack-amd64.raw.xz
   
-  # For OVH BYOI, we can use either:
-  # 1. Raw image (.raw.xz) - preferred, written directly to disk
-  # 2. qcow2 image (.qcow2) - also supported
+  # IMPORTANT: Talos Image Factory provides multiple image formats at predictable URLs
+  # The provider's data source only returns the .raw.xz URL, but other formats are available:
+  # - .raw.xz (compressed raw, returned by data source)
+  # - .qcow2 (uncompressed qcow2, available but not in data source)
+  # - .iso (ISO format, available but not in data source)
+  # The URL pattern is consistent: replace the extension to get other formats
   
-  # Option 1: Use raw image directly (recommended)
-  # OVH can decompress .xz automatically
+  # Raw image URL (compressed .raw.xz format)
+  # OVH can decompress .xz automatically, but uncompressed formats are preferred for BYOI
   image_url_raw = data.talos_image_factory_urls.this.urls.disk_image
   
-  # Option 2: Use qcow2 format (uncompressed)
-  # Talos Image Factory provides uncompressed qcow2 format
-  # OVH BYOI requires uncompressed formats (no .xz or .zst compression)
-  # Pattern: nocloud-amd64.raw.xz or openstack-amd64.raw.xz -> .qcow2
-  # Strategy: Replace the entire suffix (.raw.xz or .raw.zst) with .qcow2
+  # QCOW2 image URL (uncompressed .qcow2 format) - VERIFIED TO WORK
+  # Talos Image Factory serves qcow2 format at predictable URLs by replacing .raw.xz with .qcow2
+  # This has been verified: the qcow2 URL exists and returns HTTP 200 with valid image data
+  # Pattern: openstack-amd64.raw.xz -> openstack-amd64.qcow2
   image_url_qcow2 = replace(
     replace(
       data.talos_image_factory_urls.this.urls.disk_image,
@@ -40,10 +42,10 @@ locals {
     ".raw.zst", ".qcow2"  # Handle .zst compression format (.raw.zst -> .qcow2)
   )
   
-  # OVH BYOI requires image_type to be "qcow2" to match the deployed image format
-  # Always use qcow2 format for OVH BYOI compatibility
-  image_url = local.image_url_qcow2
-  image_type = "qcow2"
+  # Select image format based on use_raw_image variable
+  # Default is qcow2 (false) as it's been verified to work well with OVH BYOI
+  image_url = var.use_raw_image ? local.image_url_raw : local.image_url_qcow2
+  image_type = var.use_raw_image ? "raw" : "qcow2"
   
   # EFI bootloader path for Talos with GRUB (default bootloader)
   # For GRUB-based Talos images:
@@ -53,15 +55,16 @@ locals {
   # efi_bootloader_path_sdboot = "\\EFI\\Linux\\Talos-${var.talos_version}.efi"
   
   # Hash of image URL and machine config to trigger reinstall when they change
-  # This ensures that changing the platform, image, or config triggers a new reinstallation
-  reinstall_trigger = sha256("${local.image_url_qcow2}${data.talos_machine_configuration.controlplane.machine_configuration}")
+  # This ensures that changing the platform, image format, or config triggers a new reinstallation
+  reinstall_trigger = sha256("${local.image_url}${data.talos_machine_configuration.controlplane.machine_configuration}")
 }
 
 # Null resource to trigger reinstall when image URL or machine config changes
 # This is needed because replace_triggered_by only accepts resource references
 resource "null_resource" "reinstall_trigger" {
   triggers = {
-    image_url = local.image_url_qcow2
+    image_url = local.image_url
+    image_type = local.image_type
     machine_config_hash = sha256(data.talos_machine_configuration.controlplane.machine_configuration)
   }
 }
