@@ -90,22 +90,43 @@ data "talos_client_configuration" "this" {
   nodes                = local.talos_nodes
 }
 
-# Wait for Talos API to be ready before bootstrapping
-data "talos_cluster_health" "this" {
-  depends_on = [ovh_dedicated_server_reinstall_task.talos]
-
-  client_configuration = talos_machine_secrets.this.client_configuration
-  endpoints            = local.talos_endpoints
-  control_plane_nodes  = local.talos_nodes
-}
-
 # Bootstrap the Talos cluster
 # This initializes etcd and prepares the cluster for Kubernetes
+# NOTE: We removed the talos_cluster_health dependency because it creates a chicken-and-egg problem:
+# - The health check waits for etcd to be healthy
+# - But etcd can't be healthy until bootstrap runs
+# - The bootstrap resource has its own internal logic to wait for the Talos API to be ready
 resource "talos_machine_bootstrap" "this" {
   depends_on = [
     ovh_dedicated_server_reinstall_task.talos,
-    data.talos_cluster_health.this,  # Wait for API to be ready
   ]
+
+  client_configuration = talos_machine_secrets.this.client_configuration
+  node                 = local.cluster_ip
+  endpoint             = local.cluster_ip
+
+  # Force bootstrap to re-run when the server is reinstalled
+  lifecycle {
+    replace_triggered_by = [
+      null_resource.reinstall_trigger,
+    ]
+  }
+}
+
+# Verify cluster health AFTER bootstrap completes
+# This ensures the cluster is fully operational before Terraform finishes
+data "talos_cluster_health" "this" {
+  depends_on = [talos_machine_bootstrap.this]
+
+  client_configuration   = talos_machine_secrets.this.client_configuration
+  endpoints              = local.talos_endpoints
+  control_plane_nodes    = local.talos_nodes
+  skip_kubernetes_checks = true  # Only check Talos services, not full Kubernetes stack
+}
+
+# Extract kubeconfig for kubectl access
+resource "talos_cluster_kubeconfig" "this" {
+  depends_on = [talos_machine_bootstrap.this]
 
   client_configuration = talos_machine_secrets.this.client_configuration
   node                 = local.cluster_ip

@@ -101,3 +101,15 @@ output "debug_image_factory_urls" {
     initramfs     = try(data.talos_image_factory_urls.this.urls.initramfs, "N/A")
   }
 }
+
+# Kubernetes access
+output "kubeconfig" {
+  description = "Kubernetes admin configuration for kubectl - ready to use YAML file"
+  value       = talos_cluster_kubeconfig.this.kubeconfig_raw
+  sensitive   = true
+}
+
+output "kubeconfig_save_command" {
+  description = "Command to save kubeconfig to file"
+  value       = "tofu output -raw kubeconfig > kubeconfig"
+}

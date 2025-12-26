@@ -37,7 +37,7 @@ override.tf.json
 terraform.rc
 
 .env
-.cursor/mcp.jsontalosconfig
 
+.cursor/mcp.json
 talosconfig
 kubeconfig
