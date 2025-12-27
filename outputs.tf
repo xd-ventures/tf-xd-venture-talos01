@@ -36,8 +36,13 @@ output "talos_installer_image" {
 }
 
 output "cluster_endpoint" {
-  description = "Kubernetes API endpoint URL"
-  value       = var.cluster_endpoint
+  description = "Kubernetes API endpoint URL (actual endpoint used in cluster config)"
+  value       = local.actual_cluster_endpoint
+}
+
+output "cluster_endpoint_public" {
+  description = "Kubernetes API endpoint via public IP (for initial bootstrap)"
+  value       = local.public_cluster_endpoint
 }
 
 # Sensitive outputs - use with care
@@ -112,4 +117,32 @@ output "kubeconfig" {
 output "kubeconfig_save_command" {
   description = "Command to save kubeconfig to file"
   value       = "tofu output -raw kubeconfig > kubeconfig"
+}
+
+# Tailscale outputs (only shown when Tailscale is configured)
+output "tailscale_enabled" {
+  description = "Whether Tailscale is enabled for this cluster"
+  value       = local.tailscale_enabled
+}
+
+output "tailscale_hostname" {
+  description = "Full Tailscale hostname (ts.net) for accessing the cluster"
+  value       = local.tailscale_ts_net_hostname != "" ? local.tailscale_ts_net_hostname : "Tailscale not configured"
+}
+
+output "tailscale_access_info" {
+  description = "Information about accessing the cluster via Tailscale"
+  value = local.tailscale_enabled ? {
+    ts_net_hostname    = local.tailscale_ts_net_hostname
+    talos_api_endpoint = "https://${local.tailscale_ts_net_hostname}:50000"
+    k8s_api_endpoint   = "https://${local.tailscale_ts_net_hostname}:6443"
+    security_note      = "Cluster configured for Tailscale access. For extra security, use OVH firewall to block ports 50000/6443 on public IP."
+    talosctl_command   = "talosctl --endpoints ${local.tailscale_ts_net_hostname} --nodes ${local.tailscale_ts_net_hostname}"
+  } : {
+    ts_net_hostname    = "Not configured"
+    talos_api_endpoint = "https://${local.cluster_ip}:50000"
+    k8s_api_endpoint   = "https://${local.cluster_ip}:6443"
+    security_note      = "APIs accessible on public IP. Consider enabling Tailscale for secure access."
+    talosctl_command   = "talosctl --endpoints ${local.cluster_ip} --nodes ${local.cluster_ip}"
+  }
 }
