@@ -9,9 +9,14 @@ resource "ovh_dedicated_server" "talos01" {
   ovh_subsidiary = var.ovh_subsidiary
   monitoring     = var.monitoring_enabled
   state          = var.server_state
-  
+
   # Optional: uncomment to set custom display name
   # display_name   = var.cluster_name
+
+  lifecycle {
+    # Ignore display_name changes - requires additional OVH API permissions
+    ignore_changes = [display_name]
+  }
 }
 
 # Local values for image URL construction
@@ -54,19 +59,33 @@ locals {
   # For sd-boot (unified kernel image) - NOT recommended for OVH BYOI:
   # efi_bootloader_path_sdboot = "\\EFI\\Linux\\Talos-${var.talos_version}.efi"
   
-  # Hash of image URL and machine config to trigger reinstall when they change
-  # This ensures that changing the platform, image format, or config triggers a new reinstallation
-  reinstall_trigger = sha256("${local.image_url}${data.talos_machine_configuration.controlplane.machine_configuration}")
 }
 
-# Null resource to trigger reinstall when image URL or machine config changes
+# Trigger reinstall when image URL or core cluster config changes
 # This is needed because replace_triggered_by only accepts resource references
-resource "null_resource" "reinstall_trigger" {
-  triggers = {
-    image_url = local.image_url
-    image_type = local.image_type
-    machine_config_hash = sha256(data.talos_machine_configuration.controlplane.machine_configuration)
-  }
+# Using terraform_data (built-in) instead of null_resource to avoid extra provider dependency
+#
+# IMPORTANT: We trigger on STABLE components only, NOT on volatile values like Tailscale auth key.
+# The Tailscale key expires hourly but is only needed once during initial setup (TS_AUTH_ONCE=true).
+# Changes to the key should NOT trigger cluster reinstall.
+resource "terraform_data" "reinstall_trigger" {
+  triggers_replace = [
+    # Image configuration
+    local.image_url,
+    local.image_type,
+    # Cluster configuration (stable)
+    var.cluster_name,
+    var.talos_version,
+    local.actual_cluster_endpoint,
+    # Extensions (stable)
+    sha256(jsonencode(var.talos_extensions)),
+    # CertSANs config (stable - depends only on ts.net hostname, not auth key)
+    sha256(local.certsans_config_patch),
+    # Tailscale config structure (stable - hostname and args, NOT the volatile auth key)
+    var.tailscale_hostname,
+    var.tailscale_tailnet,
+    sha256(jsonencode(var.tailscale_extra_args)),
+  ]
 }
 
 # Talos OS Installation Task
@@ -101,12 +120,20 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     }
   }
   
-  # CRITICAL: Force replacement when image URL or machine config changes
-  # This ensures that changing the platform, image, or machine config triggers a new reinstallation
-  # We use null_resource.reinstall_trigger which changes when dependencies change
+  # CRITICAL: Force replacement when core config changes (via stable trigger)
+  # We use terraform_data.reinstall_trigger which tracks only STABLE values
+  # (excludes volatile Tailscale auth key to prevent unnecessary reinstalls)
   lifecycle {
+    # Ignore changes to config_drive_user_data - it contains the volatile Tailscale auth key
+    # which changes hourly. The key is only used once during initial setup (TS_AUTH_ONCE=true).
+    # Reinstalls should only be triggered by our STABLE trigger, not by key rotation.
+    ignore_changes = [
+      customizations[0].config_drive_user_data,
+    ]
+
+    # Trigger reinstall when stable config changes
     replace_triggered_by = [
-      null_resource.reinstall_trigger,  # Replace when image URL or machine config changes
+      terraform_data.reinstall_trigger,
     ]
   }
 }

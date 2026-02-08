@@ -1,0 +1,30 @@
+# OVH Object Storage Backend Configuration
+#
+# Copy this file to backend.tfvars and fill in your values.
+# NEVER commit backend.tfvars to version control (it's in .gitignore).
+#
+# Setup:
+# 1. Create container: OVH Control Panel -> Public Cloud -> Object Storage -> Create container
+# 2. Generate S3 credentials: Control Panel -> Users & Roles -> Your User -> Generate S3 Credentials
+# 3. Fill in values below
+# 4. Run: tofu init -backend-config=backend.tfvars
+
+# OVH Object Storage endpoint (varies by region)
+# Common endpoints:
+#   GRA (Gravelines, France): s3.gra.io.cloud.ovh.net
+#   SBG (Strasbourg, France): s3.sbg.io.cloud.ovh.net
+#   DE (Frankfurt, Germany):  s3.de.io.cloud.ovh.net
+#   UK (London, UK):          s3.uk.io.cloud.ovh.net
+#   BHS (Canada):             s3.bhs.io.cloud.ovh.net
+#   WAW (Warsaw, Poland):     s3.waw.io.cloud.ovh.net
+endpoint = "https://s3.gra.io.cloud.ovh.net"
+
+# Container/bucket name (must exist before init)
+bucket = "xd-venture-terraform-state"
+
+# S3 credentials from OVH (DO NOT COMMIT!)
+# Alternatively, set via environment variables:
+#   export AWS_ACCESS_KEY_ID="..."
+#   export AWS_SECRET_ACCESS_KEY="..."
+access_key = ""
+secret_key = ""

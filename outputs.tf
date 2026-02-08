@@ -1,3 +1,9 @@
+# Cluster Health Status
+output "cluster_health_status" {
+  description = "Cluster health check status (only available when Tailscale is disabled)"
+  value       = length(data.talos_cluster_health.this) > 0 ? "healthy" : "skipped (Tailscale enabled - verify manually)"
+}
+
 # Server Outputs
 output "server_id" {
   description = "The service name/ID of the bare metal server"
@@ -69,13 +75,23 @@ output "config_drive_user_data_info" {
 
 output "talosconfig" {
   description = "Talos client configuration for talosctl - ready to use YAML file"
-  value       = data.talos_client_configuration.this.talos_config
-  sensitive   = true
+  # NOTE: Using public IP because talosctl's gRPC resolver doesn't support Tailscale MagicDNS.
+  # When firewall is enabled, use: talosctl --endpoints $(dig +short <ts.net hostname>)
+  # Or use the talosctl_command from tailscale_access_info output.
+  value     = data.talos_client_configuration.this.talos_config
+  sensitive = true
 }
 
 output "talosconfig_save_command" {
   description = "Command to save talosconfig to file"
   value       = "tofu output -raw talosconfig > talosconfig"
+}
+
+# Emergency/debug access via public IP (bypasses Tailscale)
+output "talosconfig_public_ip" {
+  description = "Talos config with public IP for emergency access (bypasses Tailscale)"
+  value       = data.talos_client_configuration.this.talos_config
+  sensitive   = true
 }
 
 output "config_drive_debug_info" {
@@ -108,15 +124,30 @@ output "debug_image_factory_urls" {
 }
 
 # Kubernetes access
+# NOTE: When Tailscale is enabled, we replace the public IP in the kubeconfig
+# with the ts.net hostname. The talos_cluster_kubeconfig resource uses the
+# connection endpoint (public IP) as the server URL, but we want users to
+# connect via Tailscale for security.
 output "kubeconfig" {
   description = "Kubernetes admin configuration for kubectl - ready to use YAML file"
-  value       = talos_cluster_kubeconfig.this.kubeconfig_raw
-  sensitive   = true
+  value = local.tailscale_enabled ? replace(
+    talos_cluster_kubeconfig.this.kubeconfig_raw,
+    "https://${local.cluster_ip}:6443",
+    "https://${local.tailscale_ts_net_hostname}:6443"
+  ) : talos_cluster_kubeconfig.this.kubeconfig_raw
+  sensitive = true
 }
 
 output "kubeconfig_save_command" {
   description = "Command to save kubeconfig to file"
   value       = "tofu output -raw kubeconfig > kubeconfig"
+}
+
+# Emergency/debug access via public IP (bypasses Tailscale)
+output "kubeconfig_public_ip" {
+  description = "Kubeconfig with public IP for emergency access (bypasses Tailscale)"
+  value       = talos_cluster_kubeconfig.this.kubeconfig_raw
+  sensitive   = true
 }
 
 # Tailscale outputs (only shown when Tailscale is configured)
@@ -136,13 +167,122 @@ output "tailscale_access_info" {
     ts_net_hostname    = local.tailscale_ts_net_hostname
     talos_api_endpoint = "https://${local.tailscale_ts_net_hostname}:50000"
     k8s_api_endpoint   = "https://${local.tailscale_ts_net_hostname}:6443"
-    security_note      = "Cluster configured for Tailscale access. For extra security, use OVH firewall to block ports 50000/6443 on public IP."
-    talosctl_command   = "talosctl --endpoints ${local.tailscale_ts_net_hostname} --nodes ${local.tailscale_ts_net_hostname}"
+    security_note      = var.enable_firewall ? "Firewall ENABLED - Public IP access blocked. Access via Tailscale only." : "Cluster configured for Tailscale access. Set enable_firewall=true to block public IP."
+    # NOTE: talosctl's gRPC resolver doesn't support MagicDNS, so we resolve the IP first
+    talosctl_command   = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP"
   } : {
     ts_net_hostname    = "Not configured"
     talos_api_endpoint = "https://${local.cluster_ip}:50000"
     k8s_api_endpoint   = "https://${local.cluster_ip}:6443"
     security_note      = "APIs accessible on public IP. Consider enabling Tailscale for secure access."
     talosctl_command   = "talosctl --endpoints ${local.cluster_ip} --nodes ${local.cluster_ip}"
+  }
+}
+
+# Firewall outputs
+output "firewall_enabled" {
+  description = "Whether the Talos firewall is enabled (blocking public IP access)"
+  value       = var.enable_firewall
+}
+
+output "firewall_status" {
+  description = "Firewall configuration status and details"
+  value = var.enable_firewall ? {
+    status           = "ENABLED - Public IP access blocked"
+    allowed_networks = [var.tailscale_ipv4_cidr, var.tailscale_ipv6_cidr]
+    blocked_ports    = ["50000 (Talos API)", "6443 (K8s API)", "10250 (kubelet)", "2379-2380 (etcd)"]
+    access_via       = "Tailscale only"
+    emergency_access = "Use iKVM console or disable firewall with enable_firewall=false"
+  } : {
+    status           = "DISABLED - Public IP access allowed"
+    allowed_networks = ["0.0.0.0/0", "::/0"]
+    blocked_ports    = []
+    access_via       = "Public IP and Tailscale"
+    emergency_access = "N/A - firewall disabled"
+  }
+}
+
+# Verification commands (dynamically generated with actual values)
+output "firewall_verification_commands" {
+  description = "Commands to verify Tailscale connectivity before enabling firewall"
+  value = local.tailscale_enabled ? {
+    step_1_get_ip        = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname})"
+    step_2_tailscale_ping = "tailscale ping $TSIP"
+    step_3_talos_api     = "talosctl --endpoints $TSIP --nodes $TSIP version"
+    step_4_k8s_api       = "curl -k https://$TSIP:6443/version"
+    step_5_enable        = "# If all pass: set enable_firewall = true in terraform.tfvars, then run: tofu apply"
+    note                 = "Run these commands in order. All must succeed before enabling firewall."
+  } : {
+    error = "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
+  }
+}
+
+output "firewall_post_enable_test" {
+  description = "Commands to verify firewall is working after enabling"
+  value = local.tailscale_enabled ? {
+    test_public_blocked   = "curl -k --connect-timeout 5 https://${local.cluster_ip}:6443/version  # Should FAIL/timeout"
+    test_tailscale_works  = "curl -k https://$(dig +short ${local.tailscale_ts_net_hostname}):6443/version  # Should SUCCEED"
+  } : {
+    error = "Tailscale not configured"
+  }
+}
+
+# ArgoCD Outputs
+
+output "argocd_enabled" {
+  description = "Whether ArgoCD is deployed to the cluster"
+  value       = var.argocd_enabled
+}
+
+output "argocd_admin_password" {
+  description = "Initial admin password for ArgoCD (auto-generated). Delete argocd-initial-admin-secret after changing."
+  value       = var.argocd_enabled ? data.kubernetes_secret.argocd_initial_admin[0].data.password : "ArgoCD not enabled"
+  sensitive   = true
+}
+
+output "argocd_server_url" {
+  description = "ArgoCD server URL (internal cluster address)"
+  value       = var.argocd_enabled ? "https://argocd-server.argocd.svc.cluster.local" : "ArgoCD not enabled"
+}
+
+output "argocd_access_info" {
+  description = "Information for accessing ArgoCD UI and API"
+  value = var.argocd_enabled ? {
+    status = "ArgoCD deployed"
+
+    # Access instructions
+    port_forward_command = "kubectl port-forward svc/argocd-server -n argocd 8080:443"
+    ui_url               = var.argocd_server_insecure ? "http://localhost:8080" : "https://localhost:8080"
+    username             = "admin"
+    get_password_command = "tofu output -raw argocd_admin_password"
+
+    # CLI login (after port-forward)
+    cli_login_command = var.argocd_server_insecure ? "argocd login localhost:8080 --insecure --username admin --password $(tofu output -raw argocd_admin_password)" : "argocd login localhost:8080 --username admin --password $(tofu output -raw argocd_admin_password)"
+
+    # Security notes
+    security_note = "ArgoCD is only accessible via kubectl port-forward (Tailscale required). No external exposure."
+
+    # Helm release info
+    helm_chart_version = var.argocd_chart_version
+    namespace          = "argocd"
+  } : {
+    status = "ArgoCD not enabled. Set argocd_enabled = true to deploy."
+  }
+}
+
+output "argocd_guestbook_status" {
+  description = "Status of the ArgoCD guestbook example application"
+  value = var.argocd_enabled && var.argocd_deploy_guestbook ? {
+    deployed      = true
+    app_name      = "guestbook"
+    namespace     = "default"
+    sync_policy   = "Automated (prune + self-heal)"
+    source_repo   = "https://github.com/argoproj/argocd-example-apps.git"
+    source_path   = "guestbook"
+    view_command  = "argocd app get guestbook"
+    sync_command  = "argocd app sync guestbook"
+  } : {
+    deployed = false
+    note     = var.argocd_enabled ? "Set argocd_deploy_guestbook = true to deploy the example app" : "ArgoCD not enabled"
   }
 }

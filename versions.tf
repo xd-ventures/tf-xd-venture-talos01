@@ -10,9 +10,21 @@ terraform {
       source  = "siderolabs/talos"
       version = "~> 0.6"
     }
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
+    tailscale = {
+      source  = "tailscale/tailscale"
+      version = "~> 0.24"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.35"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.17"
+    }
+    argocd = {
+      source  = "argoproj-labs/argocd"
+      version = "~> 7.0"
     }
   }
 }
@@ -28,4 +40,46 @@ provider "ovh" {
 
 provider "talos" {
   # No authentication required for basic usage
+}
+
+# Kubernetes provider configuration
+# Uses kubeconfig from Talos cluster after bootstrap
+provider "kubernetes" {
+  host                   = local.argocd_enabled ? local.k8s_host : null
+  cluster_ca_certificate = local.argocd_enabled ? local.k8s_cluster_ca_certificate : null
+  client_certificate     = local.argocd_enabled ? local.k8s_client_certificate : null
+  client_key             = local.argocd_enabled ? local.k8s_client_key : null
+}
+
+# Helm provider configuration
+# Uses same authentication as kubernetes provider
+provider "helm" {
+  kubernetes {
+    host                   = local.argocd_enabled ? local.k8s_host : null
+    cluster_ca_certificate = local.argocd_enabled ? local.k8s_cluster_ca_certificate : null
+    client_certificate     = local.argocd_enabled ? local.k8s_client_certificate : null
+    client_key             = local.argocd_enabled ? local.k8s_client_key : null
+  }
+}
+
+# ArgoCD provider configuration
+# Connects to ArgoCD server after installation via Helm
+# Uses Kubernetes port-forward to access ArgoCD server from local machine
+provider "argocd" {
+  # Use port forwarding via kubernetes provider (creates ephemeral port-forward)
+  # This is required because we can't resolve argocd-server.argocd.svc.cluster.local from local machine
+  port_forward_with_namespace = "argocd"
+  insecure = true # Server runs in insecure mode behind Tailscale
+
+  # Use admin credentials from the initial secret
+  username = "admin"
+  password = var.argocd_enabled ? data.kubernetes_secret.argocd_initial_admin[0].data.password : ""
+
+  # Kubernetes authentication for port-forward
+  kubernetes {
+    host                   = local.argocd_enabled ? local.k8s_host : null
+    cluster_ca_certificate = local.argocd_enabled ? local.k8s_cluster_ca_certificate : null
+    client_certificate     = local.argocd_enabled ? local.k8s_client_certificate : null
+    client_key             = local.argocd_enabled ? local.k8s_client_key : null
+  }
 }

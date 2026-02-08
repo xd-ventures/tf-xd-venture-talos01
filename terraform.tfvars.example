@@ -12,7 +12,64 @@ server_state       = "ok"  # Server state (ok, disabled, etc.)
 # Talos OS Configuration
 talos_version    = "v1.12.0"                       # Talos OS version to deploy
 cluster_name     = "talos-xd-venture"              # Kubernetes cluster name
-cluster_endpoint = "https://<server-ip>:6443"      # Replace <server-ip> with actual server IP
+cluster_endpoint = "https://<server-ip>:6443"      # Replace <server-ip> with actual server IP (used when Tailscale not configured)
 talos_extensions = []                              # List of image factory extensions (e.g., ["qemu-guest-agent", "iscsi-tools"])
 use_raw_image    = false                           # Use raw (.raw.xz) format if true, qcow2 if false (default: false, qcow2 recommended)
 
+# Tailscale Configuration (optional - enables secure access via Tailscale only)
+# When configured, the cluster will:
+# - Include the Tailscale extension in the image
+# - Use ts.net hostname as the cluster endpoint
+#
+# Authentication: Use OAuth client (recommended) - see ADR-0008
+# Set via environment variables:
+#   TAILSCALE_OAUTH_CLIENT_ID="..."
+#   TAILSCALE_OAUTH_CLIENT_SECRET="..."
+#
+# Setup OAuth client at: Tailscale Admin -> Settings -> OAuth clients
+# Required scopes: auth_keys
+# Required ACL: {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"]}}
+#
+tailscale_hostname      = "talos-xd-venture"     # Hostname for the Tailscale node (without .ts.net suffix)
+tailscale_tailnet       = "tail12345"            # Tailnet name (find in Tailscale admin console, part after hostname in *.ts.net)
+tailscale_tags          = ["tag:k8s-cluster"]    # Tags for the device (must be owned by OAuth client)
+tailscale_device_lookup = true                   # Auto-discover IP via Tailscale API (set false for fresh deploys)
+# tailscale_ip          = ""                     # Manual IP override (only needed if device_lookup=false)
+# tailscale_extra_args  = []                     # Extra args (e.g., ["TS_ACCEPT_ROUTES=true", "TS_ADVERTISE_EXIT_NODE=true"])
+
+# Firewall Configuration (blocks public IP access, allows only Tailscale)
+# =========================================================================
+# WARNING: Only enable after verifying Tailscale connectivity works!
+#
+# Verification steps:
+#   1. Deploy with enable_firewall = false
+#   2. Run: tofu output firewall_verification_commands
+#   3. Execute each command shown in the output
+#   4. If all pass, set enable_firewall = true and run: tofu apply
+#   5. Verify with: tofu output firewall_post_enable_test
+#
+# If locked out: Use OVH iKVM console access to recover
+#
+enable_firewall = false  # Set to true ONLY after verifying Tailscale access works
+
+# Advanced firewall settings (defaults work for most setups)
+# pod_network_cidr    = "10.244.0.0/16"       # Cilium pod CIDR (Kubernetes IPAM)
+# tailscale_ipv4_cidr = "100.64.0.0/10"       # Tailscale IPv4 range
+# tailscale_ipv6_cidr = "fd7a:115c:a1e0::/48" # Tailscale IPv6 range
+
+# ==========================================================================
+# STORAGE NOTES
+# ==========================================================================
+# This configuration includes the ZFS extension for data storage.
+# Post-installation ZFS setup (run via talosctl or rescue mode):
+#
+# 1. Create ZFS partitions on second disk:
+#    sgdisk -n 1:0:0 -t 1:BF01 /dev/nvme1n1
+#
+# 2. Add second partition to first disk:
+#    sgdisk -n 3:0:0 -t 3:BF01 /dev/nvme0n1
+#
+# 3. Create ZFS mirror pool:
+#    zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
+#
+# See ADR-0004 for detailed storage strategy documentation.

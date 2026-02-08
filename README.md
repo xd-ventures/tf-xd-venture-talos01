@@ -1,175 +1,281 @@
-# Talos OS on OVH Bare Metal - Fixed Configuration
+# Talos Kubernetes Cluster on OVH Bare Metal
 
-## Root Cause Analysis
+Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster on OVH dedicated servers.
 
-The **"failed to determine platform"** error and reboot loop was caused by a **platform mismatch** between what the image expects and what the data source was configured to fetch.
+## Features
 
-### Original Issue in `talos.tf`:
+- **Immutable OS**: Talos Linux - secure, minimal, API-managed Kubernetes OS
+- **Modern Networking**: Cilium CNI with eBPF, Hubble observability, and Gateway API
+- **Zero-Trust Access**: Tailscale for secure API access (no public IP exposure)
+- **Data Redundancy**: ZFS mirror for persistent storage across NVMe drives
+- **GitOps Ready**: ArgoCD integration for application deployment
+- **Full Automation**: Single `tofu apply` for complete cluster provisioning
 
+## Architecture Overview
+
+```
+                              INTERNET
+                                  │
+                  ┌───────────────┴───────────────┐
+                  │                               │
+             [Cloudflare]                    [Blocked]
+             (Tunnel Only)                   (Firewall)
+                  │                               │
+                  ▼                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    OVH Dedicated Server                       │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │                   Talos Linux (GRUB Boot)               │  │
+│  │                                                          │  │
+│  │  ┌─────────────────┐  ┌───────────────────────────────┐ │  │
+│  │  │   Tailscale     │  │          Cilium CNI           │ │  │
+│  │  │   Extension     │  │   • eBPF dataplane            │ │  │
+│  │  │   (100.x.x.x)   │  │   • Hubble observability      │ │  │
+│  │  └─────────────────┘  │   • Gateway API               │ │  │
+│  │                        └───────────────────────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌────────────────────────────────────────────────────┐ │  │
+│  │  │           Kubernetes Control Plane                  │ │  │
+│  │  │   • API Server (6443) - Tailscale access only      │ │  │
+│  │  │   • etcd - localhost only                          │ │  │
+│  │  └────────────────────────────────────────────────────┘ │  │
+│  │                                                          │  │
+│  │  ┌────────────────────────────────────────────────────┐ │  │
+│  │  │              ZFS Storage (mirror)                   │ │  │
+│  │  │   NVMe 0 ◄─────────────────────► NVMe 1            │ │  │
+│  │  │              /var/mnt/data                          │ │  │
+│  │  └────────────────────────────────────────────────────┘ │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+                  │
+             [Tailscale]
+             (VPN Mesh)
+                  │
+       ┌──────────┴──────────┐
+       │                     │
+ [Admin Laptop]       [Other Nodes]
+```
+
+## Quick Start
+
+### Prerequisites
+
+- [OpenTofu](https://opentofu.org/) or Terraform >= 1.6.0
+- OVH account with API credentials
+- Tailscale account with API key
+- Existing OVH dedicated server
+
+### 1. Configure Credentials
+
+```bash
+# OVH API (get from https://api.ovh.com/createToken)
+export OVH_ENDPOINT="ovh-eu"
+export OVH_APPLICATION_KEY="your-app-key"
+export OVH_APPLICATION_SECRET="your-app-secret"
+export OVH_CONSUMER_KEY="your-consumer-key"
+
+# Tailscale API (get from https://login.tailscale.com/admin/settings/keys)
+export TAILSCALE_API_KEY="tskey-api-xxx"
+```
+
+### 2. Configure Variables
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+```
+
+Key variables:
 ```hcl
-# WRONG - This fetches metal-amd64.raw.zst image
-data "talos_image_factory_urls" "this" {
-  platform = "metal"  # <-- This was the problem!
-}
+ovh_subsidiary     = "FR"                    # OVH region
+cluster_name       = "talos-cluster"         # Cluster name
+talos_version      = "v1.12.0"               # Talos version
+tailscale_hostname = "talos-cluster"         # Tailscale hostname
+tailscale_tailnet  = "tail12345"             # Your tailnet name
 ```
 
-The `metal` platform image requires the `talos.platform=metal` kernel argument to be explicitly passed, OR it tries to auto-detect the platform from hardware/hypervisor signatures. On OVH bare metal with BYOI, this auto-detection fails.
-
-### The Fix:
-
-```hcl
-# CORRECT - This fetches nocloud-amd64.raw.xz image
-data "talos_image_factory_urls" "this" {
-  platform = "nocloud"  # Platform is baked into the image
-}
-```
-
-The `nocloud` platform image has `talos.platform=nocloud` baked in and knows how to read configuration from cloud-init style config drives - which is exactly what OVH's `config_drive_user_data` provides!
-
-## All Issues Fixed
-
-| Issue | Original | Fixed |
-|-------|----------|-------|
-| Platform | `metal` | `nocloud` |
-| Bootloader | `sd-boot` | GRUB (default) |
-| EFI Path | `/EFI/Linux/Talos-v1.12.0.efi` | `\EFI\BOOT\BOOTX64.EFI` |
-| Extra Kernel Args | `talos.platform=nocloud` (redundant) | Removed (baked into image) |
-| Image URL | `.raw.zst` → `.qcow2` replace | Proper format handling |
-
-## How Talos nocloud Platform Works
-
-1. **Boot**: Server boots from the Talos nocloud image
-2. **Platform Detection**: Talos sees `talos.platform=nocloud` and looks for config drive
-3. **Config Drive**: OVH creates a config drive partition with your `config_drive_user_data`
-4. **Configuration**: Talos reads machine config from the config drive as `user-data`
-5. **Installation**: Talos installs itself to disk with your configuration
-
-## Files Overview
-
-```
-.
-├── main.tf           # OVH server + reinstall task with BYOI
-├── talos.tf          # Talos schematic, image URLs, machine config
-├── variables.tf      # Input variables
-├── terraform.tfvars  # Your configuration values
-├── versions.tf       # Provider versions
-└── outputs.tf        # Outputs including debug info
-```
-
-## Usage
-
-### 1. Update `terraform.tfvars`
-
-```hcl
-ovh_subsidiary   = "FR"                              # Your OVH region
-talos_version    = "v1.12.0"                         # Talos version
-cluster_name     = "talos-xd-venture"                # Cluster name
-cluster_endpoint = "https://YOUR_SERVER_IP:6443"    # Replace with actual IP
-install_disk     = "/dev/sda"                        # Or /dev/nvme0n1
-```
-
-### 2. Initialize and Plan
+### 3. Deploy
 
 ```bash
 tofu init
 tofu plan
-```
-
-### 3. Check the Image URL
-
-Before applying, verify the image URL looks correct:
-
-```bash
-tofu plan -out=plan.tfplan
-tofu show -json plan.tfplan | jq '.planned_values.outputs.talos_image_url.value'
-```
-
-Expected URL format:
-```
-https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/nocloud-amd64.raw.xz
-```
-
-NOT:
-```
-https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/metal-amd64.raw.zst
-```
-
-### 4. Apply
-
-```bash
 tofu apply
 ```
 
-### 5. After Installation
-
-Once the server reboots with Talos, use `talosctl` to interact:
+### 4. Access the Cluster
 
 ```bash
-# Get the talosconfig
+# Save kubeconfig
+tofu output -raw kubeconfig > kubeconfig
+export KUBECONFIG=$PWD/kubeconfig
+
+# Verify access (via Tailscale)
+kubectl get nodes
+
+# Save talosconfig for node management
 tofu output -raw talosconfig > talosconfig
-
-# Set up talosctl
-export TALOSCONFIG=./talosconfig
-talosctl config endpoint <server-ip>
-talosctl config node <server-ip>
-
-# Check status
-talosctl health --wait-timeout 10m
-
-# Bootstrap the cluster (only once!)
-talosctl bootstrap
-
-# Get kubeconfig
-talosctl kubeconfig ./kubeconfig
+export TALOSCONFIG=$PWD/talosconfig
 ```
+
+## Post-Installation: ZFS Setup
+
+After the cluster is running, set up ZFS for data storage:
+
+```bash
+# SSH to node via Tailscale (use talosctl for commands)
+TSIP=$(dig +short <hostname>.ts.net)
+talosctl --endpoints $TSIP --nodes $TSIP shell
+
+# Create ZFS partitions (adjust device names as needed)
+sgdisk -n 1:0:0 -t 1:BF01 /dev/nvme1n1
+sgdisk -n 3:0:0 -t 3:BF01 /dev/nvme0n1
+
+# Create mirror pool
+zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
+```
+
+## Directory Structure
+
+```
+.
+├── main.tf                 # OVH server + reinstall task
+├── talos.tf                # Talos configuration and bootstrap
+├── tailscale.tf            # Tailscale provider and auth key
+├── firewall.tf             # Network firewall rules
+├── argocd.tf               # ArgoCD deployment (optional)
+├── variables.tf            # Input variables
+├── outputs.tf              # Output values
+├── versions.tf             # Provider versions
+├── backend.tf              # Remote state configuration
+├── terraform.tfvars.example # Example configuration
+├── docs/
+│   ├── ARCHITECTURE.md     # Detailed architecture
+│   ├── TESTING_STRATEGY.md # Validation procedures
+│   ├── OVH_BYOI_GUIDE.md   # OVH installation specifics
+│   └── adr/                # Architecture Decision Records
+└── scripts/
+    ├── ovh-server-status.sh  # Check server status
+    ├── ovh-rescue-boot.sh    # Boot to rescue mode
+    └── ovh-normal-boot.sh    # Restore normal boot
+```
+
+## Security Model
+
+| Access Type | Method | Ports |
+|------------|--------|-------|
+| Admin (kubectl, talosctl) | Tailscale VPN | 6443, 50000 |
+| Public Services | Cloudflare Tunnel | 443 |
+| Public Internet | Blocked by firewall | - |
+
+Enable the firewall after verifying Tailscale connectivity:
+
+```bash
+# Verify Tailscale works first
+tofu output firewall_verification_commands
+# Run each command to verify
+
+# Then enable firewall
+# Set enable_firewall = true in terraform.tfvars
+tofu apply
+```
+
+## Remote State (Optional)
+
+To use OVH Object Storage for remote state:
+
+1. Create an Object Storage container in OVH
+2. Generate S3 credentials
+3. Configure backend:
+
+```bash
+cp backend.tfvars.example backend.tfvars
+# Edit backend.tfvars with your credentials
+
+# Uncomment backend block in backend.tf
+tofu init -backend-config=backend.tfvars
+```
+
+## Upgrades
+
+### Talos Version Upgrade
+
+```bash
+# Update talos_version in terraform.tfvars
+talos_version = "v1.13.0"
+
+# Apply - this triggers reinstall
+tofu apply
+```
+
+### Add Extensions
+
+```bash
+# Add to talos_extensions list
+talos_extensions = ["siderolabs/iscsi-tools"]
+
+# Apply - triggers reinstall with new schematic
+tofu apply
+```
+
+### Configuration Updates (no reinstall)
+
+Use `talosctl apply-config` for runtime config changes that don't require reinstall.
 
 ## Troubleshooting
 
-### Still seeing "failed to determine platform"?
+### Server Not Responding
 
-1. **Verify the image URL** in Terraform output contains `nocloud-amd64`, not `metal-amd64`
+```bash
+# Check server status via OVH API
+./scripts/ovh-server-status.sh
 
-2. **Check schematic** doesn't override platform:
-   ```bash
-   tofu state show talos_image_factory_schematic.this
-   ```
+# Boot to rescue mode for debugging
+./scripts/ovh-rescue-boot.sh
+```
 
-3. **Try manual test** - download the image and verify:
-   ```bash
-   # Get the URL from terraform output
-   URL=$(tofu output -raw talos_image_url)
-   
-   # This should return nocloud-amd64 in the filename
-   echo $URL
-   ```
+### Tailscale Connection Issues
 
-### Can't reach the server after boot?
+```bash
+# Verify node is in your tailnet
+tailscale status
 
-1. **Check OVH KVM/IPMI console** - Talos should show its dashboard
-2. **Verify network config** - Talos nocloud will use DHCP by default
-3. **Check cluster_endpoint** - make sure it matches the server's actual IP
+# Test direct connectivity
+TSIP=$(dig +short <hostname>.ts.net)
+tailscale ping $TSIP
+```
 
-### Image download fails?
+### Cluster Health
 
-The Image Factory URL format for nocloud is:
-- Raw: `https://factory.talos.dev/image/{schematic_id}/{version}/nocloud-amd64.raw.xz`
-- QCOW2: `https://factory.talos.dev/image/{schematic_id}/{version}/nocloud-amd64.qcow2`
+```bash
+# Check Talos services
+talosctl --endpoints $TSIP service
 
-If raw.xz doesn't work, try setting `use_raw_image = false` to use qcow2.
+# Check Kubernetes components
+talosctl --endpoints $TSIP health
+```
 
-## Alternative: Using metal Platform with Explicit Config
+## Documentation
 
-If you really need to use the `metal` platform (for some reason), you'd need to:
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Testing Strategy](docs/TESTING_STRATEGY.md)
+- [Architecture Decision Records](docs/adr/README.md)
 
-1. Use `platform = "metal"` in the data source
-2. Pass `talos.config=https://your-server.com/config.yaml` as kernel argument
-3. Host the machine config on an accessible HTTP server
+## Contributing
 
-This is more complex and requires external config hosting, which is why `nocloud` is recommended for OVH BYOI.
+Contributions are welcome! This project uses **GitHub Flow**:
+
+1. Fork the repository
+2. Create a feature branch from `main` (`git checkout -b feature/your-change`)
+3. Commit your changes with descriptive messages
+4. Push to your branch and open a Pull Request
+
+Please note: This is a solo hobby project, so PR reviews may take some time. Your patience is appreciated!
+
+For AI agents contributing to this codebase, see [AGENTS.md](AGENTS.md) for detailed workflow instructions.
 
 ## References
 
-- [Talos nocloud Platform Documentation](https://www.talos.dev/v1.12/talos-guides/install/cloud-platforms/nocloud/)
-- [Talos Image Factory](https://factory.talos.dev/)
-- [OVH BYOI Documentation](https://help.ovhcloud.com/csm/en-dedicated-servers-bringyourownimage)
-- [Terraform Talos Provider](https://registry.terraform.io/providers/siderolabs/talos/latest/docs)
+- [Talos Documentation](https://www.talos.dev/v1.12/)
+- [Cilium Documentation](https://docs.cilium.io/)
+- [OVH BYOI Guide](https://help.ovhcloud.com/csm/en-dedicated-servers-bringyourownimage)
+- [Tailscale Documentation](https://tailscale.com/kb/)

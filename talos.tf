@@ -25,7 +25,7 @@ resource "talos_image_factory_schematic" "this" {
         officialExtensions = concat(
           [
             "siderolabs/amd-ucode",  # AMD CPU microcode updates
-            # "siderolabs/mdadm"     # Uncomment if you need software RAID
+            "siderolabs/zfs",        # ZFS for data storage (mirrored NVMe drives)
           ],
           # Conditionally include Tailscale extension when hostname and tailnet are configured
           var.tailscale_hostname != "" && var.tailscale_tailnet != "" ? ["siderolabs/tailscale"] : [],
@@ -62,6 +62,15 @@ locals {
     : ""
   )
 
+  # Tailscale IP for Talos API operations (firewall apply, config apply, etc.)
+  # Priority: data source lookup > manual override > public IP fallback
+  # See ADR-0009 for design rationale
+  tailscale_endpoint_ip = (
+    length(data.tailscale_device.talos_node) > 0
+    ? data.tailscale_device.talos_node[0].addresses[0]  # Dynamic lookup (preferred)
+    : coalesce(var.tailscale_ip, local.cluster_ip)       # Manual fallback
+  )
+
   # Replace <server-ip> placeholder with actual server IP from OVH resource
   # This allows using placeholder in tfvars and auto-resolving to actual IP
   # CRITICAL: No fallback to localhost - fail explicitly if IP is unavailable to prevent
@@ -72,9 +81,11 @@ locals {
     ovh_dedicated_server.talos01.ip
   )
 
-  # Use ts.net hostname as endpoint if Tailscale is fully configured, otherwise use public IP
+  # Use ts.net hostname when Tailscale is enabled for secure access
+  # NOTE: The cluster node itself may not resolve ts.net hostnames (no MagicDNS internally)
+  # This means talosctl health may fail with DNS errors, but kubectl will work from your machine
   actual_cluster_endpoint = (
-    local.tailscale_ts_net_hostname != ""
+    local.tailscale_enabled
     ? "https://${local.tailscale_ts_net_hostname}:6443"
     : local.public_cluster_endpoint
   )
@@ -91,14 +102,21 @@ locals {
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
   talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
 
+  # Tailscale auth key is always auto-generated via tailscale_tailnet_key resource
+  # This ensures fresh, single-use keys for each deployment (no stale keys from env vars)
+  tailscale_authkey = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].key : ""
+
   # Tailscale extension service configuration patch
+  # NOTE: TS_AUTH_ONCE=true means the auth key is used only once during initial setup.
+  # After that, Tailscale stores its state and won't need the key again.
+  # For reinstalls, the Tailscale provider auto-generates a new key.
   tailscale_config_patch = local.tailscale_enabled ? yamlencode({
     apiVersion = "v1alpha1"
     kind       = "ExtensionServiceConfig"
     name       = "tailscale"
     environment = concat(
       [
-        "TS_AUTHKEY=${var.tailscale_authkey}",
+        "TS_AUTHKEY=${local.tailscale_authkey}",
         "TS_AUTH_ONCE=true",  # Auth key used only once, subsequent restarts use stored state
       ],
       var.tailscale_hostname != "" ? ["TS_HOSTNAME=${var.tailscale_hostname}"] : [],
@@ -125,10 +143,161 @@ locals {
     }
   }) : ""
 
+  # ZFS kernel module configuration
+  # Loads the ZFS module at boot for the ZFS extension
+  zfs_config_patch = yamlencode({
+    machine = {
+      kernel = {
+        modules = [
+          { name = "zfs" }
+        ]
+      }
+    }
+  })
+
+  # Cilium CNI configuration
+  # Replaces Flannel with Cilium for eBPF-based networking, Hubble observability, and Gateway API
+  # See ADR-0003 for decision rationale
+  cilium_config_patch = yamlencode({
+    cluster = {
+      # Disable default Flannel CNI
+      network = {
+        cni = {
+          name = "none"
+        }
+      }
+      # Install Cilium via inline manifest
+      inlineManifests = [
+        {
+          name     = "cilium-install"
+          contents = local.cilium_install_manifest
+        }
+      ]
+      # Skip waiting for CNI during bootstrap (Cilium installs after API server)
+      allowSchedulingOnControlPlanes = true
+    }
+  })
+
+  # Cilium installation manifest
+  # Uses Cilium CLI job to install Cilium with native routing mode
+  cilium_install_manifest = <<-EOF
+    ---
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: cilium-install
+      namespace: kube-system
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: cilium-install
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+      - kind: ServiceAccount
+        name: cilium-install
+        namespace: kube-system
+    ---
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: cilium-install
+      namespace: kube-system
+    spec:
+      backoffLimit: 10
+      template:
+        metadata:
+          labels:
+            app: cilium-install
+        spec:
+          restartPolicy: OnFailure
+          tolerations:
+            - operator: Exists
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-role.kubernetes.io/control-plane
+                        operator: Exists
+          serviceAccountName: cilium-install
+          hostNetwork: true
+          containers:
+            - name: cilium-install
+              image: quay.io/cilium/cilium-cli-ci:latest
+              env:
+                - name: KUBERNETES_SERVICE_HOST
+                  valueFrom:
+                    fieldRef:
+                      apiVersion: v1
+                      fieldPath: status.podIP
+                - name: KUBERNETES_SERVICE_PORT
+                  value: "6443"
+              command:
+                - cilium
+                - install
+                - --set
+                - ipam.mode=kubernetes
+                - --set
+                - kubeProxyReplacement=true
+                - --set
+                - securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}
+                - --set
+                - securityContext.capabilities.cleanCiliumState={NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}
+                - --set
+                - cgroup.autoMount.enabled=false
+                - --set
+                - cgroup.hostRoot=/sys/fs/cgroup
+                - --set
+                - k8sServiceHost=localhost
+                - --set
+                - k8sServicePort=7445
+                - --set
+                - hubble.enabled=true
+                - --set
+                - hubble.relay.enabled=true
+                - --set
+                - hubble.ui.enabled=true
+                - --set
+                - gatewayAPI.enabled=true
+  EOF
+
   # Combined config patches for machine configuration
   config_patches = compact([
     local.tailscale_config_patch,
     local.certsans_config_patch,
+    local.zfs_config_patch,
+    local.cilium_config_patch,
+  ])
+
+  # STABLE config patches for reinstall trigger comparison
+  # The Tailscale auth key changes frequently (expires after 1 hour), but we don't want
+  # to reinstall the server just because the key changed - the key is only used once
+  # during initial setup (TS_AUTH_ONCE=true). After that, Tailscale stores its state.
+  # This stable version uses a placeholder instead of the actual key.
+  tailscale_config_patch_stable = local.tailscale_enabled ? yamlencode({
+    apiVersion = "v1alpha1"
+    kind       = "ExtensionServiceConfig"
+    name       = "tailscale"
+    environment = concat(
+      [
+        "TS_AUTHKEY=STABLE_PLACEHOLDER",  # Placeholder - actual key is volatile
+        "TS_AUTH_ONCE=true",
+      ],
+      var.tailscale_hostname != "" ? ["TS_HOSTNAME=${var.tailscale_hostname}"] : [],
+      [for arg in var.tailscale_extra_args : arg]
+    )
+  }) : ""
+
+  # Stable config patches used ONLY for reinstall trigger comparison
+  stable_config_patches = compact([
+    local.tailscale_config_patch_stable,
+    local.certsans_config_patch,
+    local.zfs_config_patch,
+    local.cilium_config_patch,
   ])
 }
 
@@ -142,6 +311,24 @@ data "talos_machine_configuration" "controlplane" {
 
   # Apply config patches for Tailscale, firewall, and certSANs
   config_patches = local.config_patches
+
+  # CRITICAL: Wait for Tailscale key to be created before generating config
+  # Without this, the config is evaluated during planning before the key exists
+  depends_on = [tailscale_tailnet_key.talos]
+}
+
+# STABLE machine configuration for reinstall trigger comparison
+# This uses stable_config_patches which has a placeholder for the Tailscale auth key
+# so that key expiration/regeneration doesn't trigger a cluster reinstall
+data "talos_machine_configuration" "controlplane_stable" {
+  cluster_name     = var.cluster_name
+  machine_type     = "controlplane"
+  cluster_endpoint = local.actual_cluster_endpoint
+  machine_secrets  = talos_machine_secrets.this.machine_secrets
+  talos_version    = var.talos_version
+
+  # Use STABLE config patches (with placeholder for volatile Tailscale auth key)
+  config_patches = local.stable_config_patches
 }
 
 # Generate talosconfig for talosctl
@@ -170,14 +357,21 @@ resource "talos_machine_bootstrap" "this" {
   # Force bootstrap to re-run when the server is reinstalled
   lifecycle {
     replace_triggered_by = [
-      null_resource.reinstall_trigger,
+      terraform_data.reinstall_trigger,
     ]
   }
 }
 
 # Verify cluster health AFTER bootstrap completes
 # This ensures the cluster is fully operational before Terraform finishes
+# NOTE: When Tailscale is enabled, etcd advertises itself with the Tailscale IP (100.x.x.x),
+# which causes the health check to fail because control_plane_nodes uses the public IP.
+# We skip the health check when Tailscale is enabled since:
+# 1. Bootstrap already waits for Talos API readiness
+# 2. Tailscale IP is dynamically assigned and unknown to Terraform
+# 3. User can verify health manually via: talosctl health --control-plane-nodes <tailscale-ip>
 data "talos_cluster_health" "this" {
+  count      = local.tailscale_enabled ? 0 : 1  # Skip when Tailscale is enabled
   depends_on = [talos_machine_bootstrap.this]
 
   client_configuration   = talos_machine_secrets.this.client_configuration
