@@ -1,30 +1,29 @@
-# OVH Object Storage Backend Configuration
+# OVH Object Storage Backend Configuration (DEPRECATED)
 #
-# Copy this file to backend.tfvars and fill in your values.
-# NEVER commit backend.tfvars to version control (it's in .gitignore).
+# RECOMMENDATION: Use environment variables instead of this file.
+# See ADR-0010 for the recommended approach.
 #
-# Setup:
-# 1. Create container: OVH Control Panel -> Public Cloud -> Object Storage -> Create container
-# 2. Generate S3 credentials: Control Panel -> Users & Roles -> Your User -> Generate S3 Credentials
-# 3. Fill in values below
-# 4. Run: tofu init -backend-config=backend.tfvars
+# Environment variables (preferred):
+#   export AWS_ACCESS_KEY_ID="<ovh-s3-access-key>"
+#   export AWS_SECRET_ACCESS_KEY="<ovh-s3-secret-key>"
+#
+# With environment variables, you can simply run:
+#   tofu init -migrate-state
+#
+# If you must use this file:
+# 1. Copy to backend.tfvars (NEVER commit - it's in .gitignore)
+# 2. Fill in credentials below
+# 3. Run: tofu init -backend-config=backend.tfvars -migrate-state
+#
+# NOTE: This file is kept for backwards compatibility but environment
+# variables are the recommended approach for credential management.
 
-# OVH Object Storage endpoint (varies by region)
-# Common endpoints:
-#   GRA (Gravelines, France): s3.gra.io.cloud.ovh.net
-#   SBG (Strasbourg, France): s3.sbg.io.cloud.ovh.net
-#   DE (Frankfurt, Germany):  s3.de.io.cloud.ovh.net
-#   UK (London, UK):          s3.uk.io.cloud.ovh.net
-#   BHS (Canada):             s3.bhs.io.cloud.ovh.net
-#   WAW (Warsaw, Poland):     s3.waw.io.cloud.ovh.net
-endpoint = "https://s3.gra.io.cloud.ovh.net"
+# These values match the defaults in backend.tf, only override if needed
+# endpoint = "https://s3.gra.io.cloud.ovh.net"
+# bucket   = "xd-venture-terraform-state"
+# region   = "gra"
 
-# Container/bucket name (must exist before init)
-bucket = "xd-venture-terraform-state"
-
-# S3 credentials from OVH (DO NOT COMMIT!)
-# Alternatively, set via environment variables:
-#   export AWS_ACCESS_KEY_ID="..."
-#   export AWS_SECRET_ACCESS_KEY="..."
+# S3 credentials from OVH (DO NOT COMMIT these values!)
+# Prefer environment variables over this file.
 access_key = ""
 secret_key = ""

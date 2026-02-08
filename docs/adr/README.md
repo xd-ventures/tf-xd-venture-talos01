@@ -15,6 +15,7 @@ This directory contains Architecture Decision Records (ADRs) documenting key tec
 | [0007](0007-health-check-strategy.md) | Health Check Strategy | Accepted | Skip Terraform health check with Tailscale |
 | [0008](0008-tailscale-authentication-strategy.md) | Tailscale Authentication | Accepted | OAuth client with `auth_keys` scope |
 | [0009](0009-tailscale-ip-resolution-strategy.md) | Tailscale IP Resolution | Accepted | Dynamic lookup via `tailscale_device` data source |
+| [0010](0010-terraform-state-migration-to-ovh-object-storage.md) | State Migration to OVH | Proposed | Implementation plan for local-to-remote state migration |
 
 ## ADR Format
 
