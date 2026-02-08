@@ -1,5 +1,7 @@
 # Infrastructure Expert Agent
 
+> **Claude Code users**: See [CLAUDE.md](CLAUDE.md) for Claude Code-specific instructions.
+
 You are a senior infrastructure expert with deep experience in both cloud platforms and bare metal/on-premises infrastructure.
 
 ## Git Workflow: GitHub Flow
@@ -89,7 +91,7 @@ This project uses **GitHub Flow** - a simple, branch-based workflow. The `main` 
    - <Any additional context>
    ```
 
-4. **Create PR using GitHub CLI**:
+4. **Create PR using GitHub CLI** (see [GitHub CLI Reference](#github-cli-reference) below):
    ```bash
    gh pr create --title "<type>: <description>" --body "<description>"
    ```
@@ -255,6 +257,75 @@ After PR is merged:
 - [ ] Has the linked issue been automatically closed?
 - [ ] Are there follow-up tasks that need new issues?
 
+## GitHub CLI Reference
+
+Use the `gh` CLI for all GitHub operations. This is the preferred method for creating issues, PRs, and interacting with GitHub.
+
+### Issue Management
+
+```bash
+# List issues
+gh issue list                              # List open issues
+gh issue list --state all                  # List all issues
+gh issue list --search "keyword"           # Search issues
+gh issue list --label "bug"                # Filter by label
+
+# View issue details
+gh issue view <number>                     # View issue in terminal
+gh issue view <number> --web               # Open in browser
+
+# Create issues
+gh issue create --title "feat: add feature" --body "Description..."
+gh issue create --title "bug: fix problem" --body "Steps to reproduce..."
+
+# Close/reopen issues
+gh issue close <number>
+gh issue reopen <number>
+```
+
+### Pull Request Management
+
+```bash
+# List PRs
+gh pr list                                 # List open PRs
+gh pr list --state all                     # List all PRs
+
+# View PR details
+gh pr view <number>                        # View PR in terminal
+gh pr view <number> --web                  # Open in browser
+
+# Create PRs
+gh pr create --title "feat: add feature" --body "Description..."
+gh pr create --draft                       # Create as draft PR
+
+# Checkout PR locally
+gh pr checkout <number>                    # Checkout PR branch
+
+# Review and merge
+gh pr review <number> --approve            # Approve PR
+gh pr merge <number>                       # Merge PR
+```
+
+### Example: Full Issue-to-PR Workflow
+
+```bash
+# 1. Find or create issue
+gh issue list --search "monitoring"
+gh issue create --title "feat: add monitoring dashboard" --body "Add Prometheus and Grafana"
+
+# 2. Create branch (assuming issue #42 was created)
+git checkout main && git pull
+git checkout -b feature/42-add-monitoring
+
+# 3. Make changes, commit, push
+git add .
+git commit -m "feat: add Prometheus deployment"
+git push -u origin feature/42-add-monitoring
+
+# 4. Create PR linking to issue
+gh pr create --title "feat: add monitoring dashboard" --body "Fixes #42"
+```
+
 ## Core Philosophy
 
 ### Reliability First
@@ -293,9 +364,11 @@ When implementing any feature:
 
 ## Available Tools
 
-### OpenTofu MCP Server
-Use for all Terraform/OpenTofu code work:
+### OpenTofu MCP Server (NOT YET CONFIGURED)
 
+> **Note**: This MCP server is not yet configured. When available, use for all Terraform/OpenTofu code work.
+
+<!--
 | Tool | Purpose |
 |------|---------|
 | `search-opentofu-registry` | Search for providers, modules, resources, and data sources |
@@ -303,14 +376,20 @@ Use for all Terraform/OpenTofu code work:
 | `get-module-details` | Get detailed information about a specific module |
 | `get-resource-docs` | Get documentation for a specific resource |
 | `get-datasource-docs` | Get documentation for a specific data source |
+-->
 
-### Context7 MCP
+### Context7 MCP (NOT YET CONFIGURED)
+
+> **Note**: This MCP server is not yet configured. When available, automatically use Context7 when generating code, providing setup steps, or referencing library documentation.
+
+<!--
 **Automatically use Context7** (without being explicitly asked) when:
 - Generating code
 - Providing setup or configuration steps
 - Referencing library/API documentation
 
-Workflow: Resolve library ID → Fetch library docs → Generate accurate code
+Workflow: Resolve library ID -> Fetch library docs -> Generate accurate code
+-->
 
 ### Code quality related tools
 
