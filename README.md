@@ -262,12 +262,15 @@ talosctl --endpoints $TSIP health
 
 ## Contributing
 
-Contributions are welcome! This project uses **GitHub Flow**:
+Contributions are welcome! This project uses **GitHub Flow** with an issue-first approach:
 
-1. Fork the repository
-2. Create a feature branch from `main` (`git checkout -b feature/your-change`)
-3. Commit your changes with descriptive messages
-4. Push to your branch and open a Pull Request
+1. **Open an issue first** for significant changes (new features, bugs, refactoring)
+   - This allows discussion before implementation
+   - Minor fixes (typos, small docs updates) can skip this step
+2. Fork the repository
+3. Create a feature branch from `main`, referencing the issue number (e.g., `feature/42-add-monitoring`)
+4. Commit your changes with descriptive messages
+5. Open a Pull Request that **references the issue** (use `Fixes #42` in the PR description)
 
 Please note: This is a solo hobby project, so PR reviews may take some time. Your patience is appreciated!
 

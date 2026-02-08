@@ -17,9 +17,9 @@ This project uses **GitHub Flow** - a simple, branch-based workflow. The `main` 
    git checkout -b <branch-name>
    ```
 
-2. **Branch naming convention** - Use descriptive, lowercase names with hyphens:
-   - `feature/<description>` - New functionality (e.g., `feature/add-ingress-controller`)
-   - `fix/<description>` - Bug fixes (e.g., `fix/tailscale-auth-timeout`)
+2. **Branch naming convention** - Use descriptive, lowercase names with hyphens. **When an issue exists, include the issue number**:
+   - `feature/<issue>-<description>` - New functionality (e.g., `feature/42-add-ingress-controller`)
+   - `fix/<issue>-<description>` - Bug fixes (e.g., `fix/15-tailscale-auth-timeout`)
    - `docs/<description>` - Documentation changes (e.g., `docs/update-zfs-guide`)
    - `refactor/<description>` - Code refactoring (e.g., `refactor/split-talos-config`)
    - `chore/<description>` - Maintenance tasks (e.g., `chore/update-provider-versions`)
@@ -129,6 +129,131 @@ After PR is merged:
 2. **Small, focused PRs** - One logical change per PR. Easier to review and revert.
 3. **No long-lived branches** - Merge frequently to avoid divergence.
 4. **Delete branches after merge** - Keep the repository clean.
+
+## GitHub Issues Workflow
+
+This project uses GitHub Issues for planning features and tracking bugs. Follow the **Issue-First Workflow** to ensure changes are properly tracked and linked.
+
+### When to Create Issues
+
+**Create an issue for:**
+- New features or enhancements
+- Bug reports
+- Significant refactoring efforts
+- Breaking changes or major updates
+- Tasks requiring discussion before implementation
+
+**Issues are NOT required for:**
+- Typo fixes
+- Minor documentation updates
+- Small cosmetic changes
+- Dependency version bumps (unless significant)
+
+### Issue-First Workflow
+
+1. **Find or create an issue** before starting work:
+   ```bash
+   # Search for existing issues
+   gh issue list --search "keyword"
+
+   # Create a new issue
+   gh issue create --title "feat: add monitoring dashboard" --body "Description..."
+   ```
+
+2. **Reference the issue in your branch name**:
+   ```bash
+   # Include issue number in branch name
+   git checkout -b feature/42-add-monitoring-dashboard
+   git checkout -b fix/15-tailscale-timeout
+   ```
+
+3. **Reference the issue in commits** (optional but helpful):
+   ```
+   feat: add Prometheus metrics endpoint
+
+   Part of #42 - monitoring dashboard implementation
+   ```
+
+4. **Link the PR to the issue** using GitHub keywords (see below).
+
+### Linking PRs to Issues
+
+Use GitHub keywords in **PR descriptions** to automatically close issues when the PR merges:
+
+| Keyword | Example | Effect |
+|---------|---------|--------|
+| `Fixes` | `Fixes #42` | Closes issue #42 on merge |
+| `Closes` | `Closes #42` | Closes issue #42 on merge |
+| `Resolves` | `Resolves #42` | Closes issue #42 on merge |
+
+**Important notes:**
+- Place the keyword in the **PR description body**, not just the title
+- The keyword must be followed by `#` and the issue number
+- Multiple issues can be linked: `Fixes #42, Closes #43`
+- Use `Relates to #42` or `Part of #42` for reference without auto-closing
+
+### PR Description Template (with Issue Reference)
+
+When creating a PR that addresses an issue, use this format:
+
+```markdown
+## Summary
+<Brief description of what this PR does>
+
+## Related Issue
+Fixes #<issue-number>
+
+## Changes
+- <List of key changes>
+- <Another change>
+
+## Testing
+- <How was this tested?>
+- [ ] `tofu validate` passes
+- [ ] `tflint` passes
+
+## Notes
+- <Any additional context, trade-offs, or follow-up items>
+```
+
+### Creating PRs with Issue Links
+
+```bash
+# Create PR with issue reference in body
+gh pr create --title "feat: add monitoring dashboard" --body "$(cat <<'EOF'
+## Summary
+Adds Prometheus and Grafana deployment for cluster monitoring.
+
+## Related Issue
+Fixes #42
+
+## Changes
+- Add prometheus.tf with Prometheus Operator deployment
+- Add grafana.tf with Grafana dashboard configuration
+- Update variables.tf with monitoring options
+
+## Testing
+- [x] `tofu validate` passes
+- [x] `tflint` passes
+- [x] Applied to test environment
+EOF
+)"
+```
+
+### Quick Reference: Issue Workflow Checklist
+
+Before starting work:
+- [ ] Is there an existing issue for this work?
+- [ ] If not, should I create one? (features, bugs, significant changes = yes)
+- [ ] Have I included the issue number in my branch name?
+
+Before creating PR:
+- [ ] Does my PR description include `Fixes #<number>` or `Closes #<number>`?
+- [ ] Have I explained how this PR addresses the issue?
+
+After PR is merged:
+- [ ] Has the linked issue been automatically closed?
+- [ ] Are there follow-up tasks that need new issues?
 
 ## Core Philosophy
 
