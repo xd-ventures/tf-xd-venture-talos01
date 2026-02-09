@@ -79,4 +79,3 @@ output "tailscale_key_expires_at" {
   description = "Expiry time of the generated Tailscale auth key"
   value       = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].expires_at : null
 }
-

@@ -136,6 +136,10 @@ outputs.tf       # Output values
 ## Quick Commands
 
 ```bash
+# Pre-commit
+pre-commit install          # First-time setup
+pre-commit run --all-files  # Run all checks
+
 # Initialize
 tofu init
 

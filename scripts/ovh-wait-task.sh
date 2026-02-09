@@ -31,8 +31,6 @@ fi
 echo "Waiting for task $TASK_ID on $SERVICE_NAME (timeout: ${TIMEOUT}s)"
 echo "================================================================"
 
-START_TIME=$(date +%s)
-
 python3 << EOF
 import ovh
 import time
