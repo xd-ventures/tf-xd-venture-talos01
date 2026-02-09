@@ -1,0 +1,135 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.tf'
+      - '**.tfvars.example'
+      - '.pre-commit-config.yaml'
+      - '.tflint.hcl'
+      - 'scripts/**'
+      - '.github/workflows/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: '1.11.x'
+          tofu_wrapper: false
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+      - name: Post failure comment
+        if: failure()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pre-commit
+          message: |
+            ## :x: Pre-commit checks failed
+
+            One or more pre-commit hooks failed. Run locally to see details and auto-fix:
+
+            ```bash
+            pre-commit run --all-files
+            ```
+
+            Then commit the fixes and push again.
+
+      - name: Delete success comment
+        if: success()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pre-commit
+          delete: true
+
+      - name: Job Summary on failure
+        if: failure()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## :x: Pre-commit checks failed
+
+          One or more pre-commit hooks failed. Run locally to fix:
+
+          ```bash
+          pre-commit run --all-files
+          ```
+
+          Commit the fixes and push again.
+          EOF
+
+  security-scan:
+    name: Trivy IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy scan (table)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scanners: misconfig,secret
+          severity: CRITICAL,HIGH,MEDIUM
+          format: table
+          output: trivy-results.txt
+          exit-code: '0'
+
+      - name: Trivy scan (SARIF)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scanners: misconfig,secret
+          severity: CRITICAL,HIGH,MEDIUM
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Job Summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'OUTER'
+          ## Trivy IaC Scan Results
+
+          <details>
+          <summary>Click to expand scan results</summary>
+
+          ```
+          OUTER
+          cat trivy-results.txt >> "$GITHUB_STEP_SUMMARY"
+          cat >> "$GITHUB_STEP_SUMMARY" << 'OUTER'
+          ```
+
+          </details>
+
+          > **Note:** This scan is informational. Known findings are tracked in issues.
+          OUTER
