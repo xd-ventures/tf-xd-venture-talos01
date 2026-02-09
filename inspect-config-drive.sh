@@ -35,7 +35,7 @@ for dev in /dev/sd*[0-9] /dev/nvme*p*; do
         label=$(blkid -s LABEL -o value "$dev" 2>/dev/null || echo "")
         if [ -n "$label" ]; then
             echo "  Found partition $dev with label: $label"
-            mountpoint="/tmp/inspect/$(basename $dev)"
+            mountpoint="/tmp/inspect/$(basename "$dev")"
             mkdir -p "$mountpoint"
             if mount -r "$dev" "$mountpoint" 2>/dev/null; then
                 echo "    Mounted at $mountpoint"
@@ -78,4 +78,3 @@ echo "Look for:"
 echo "  - Volume labels containing 'cidata' or 'CIDATA'"
 echo "  - Partitions with user-data and meta-data files"
 echo "  - The format of user-data (raw YAML vs base64 encoded)"
-

@@ -187,4 +187,3 @@ resource "argocd_application" "guestbook" {
     data.kubernetes_secret.argocd_initial_admin,
   ]
 }
-

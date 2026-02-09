@@ -79,4 +79,3 @@ Manually apply config once in maintenance mode.
 ## Recommendation
 
 Implement **Option 1: SMBIOS Serial Number Method** with a simple HTTP server to host the config files. This provides full automation while working with OVH's limitations.
-

@@ -183,4 +183,3 @@ resource "talos_machine_configuration_apply" "firewall" {
   # Apply without reboot - firewall rules take effect immediately
   apply_mode = "no_reboot"
 }
-
