@@ -1,45 +1,48 @@
-# Local .terraform directories
+# OpenTofu / Terraform
 .terraform/
-
-# .tfstate files
 *.tfstate
 *.tfstate.*
-
-# Crash log files
-crash.log
-crash.*.log
-
-# Exclude all .tfvars files, which are likely to contain sensitive data, such as
-# password, private keys, and other secrets. These should not be part of version 
-# control as they are data points which are potentially sensitive and subject 
-# to change depending on the environment.
-*.tfvars
-*.tfvars.json
-# But include example files for documentation
-!*.tfvars.example
-
-# Ignore override files as they are usually used to override resources locally and so
-# are not checked in
+*.tfplan
+*.tfplan.json
+.terraform.tfstate.lock.info
+.terraformrc
+terraform.rc
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Ignore transient lock info files created by terraform apply
-.terraform.tfstate.lock.info
+# Sensitive variable files (may contain secrets)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
 
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
+# Backend config (contains S3 credentials)
+backend.tfvars
 
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
+# Crash logs
+crash.log
+crash.*.log
 
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-
+# Credentials and secrets
 .env
-
-.cursor/mcp.json
-talosconfig
 kubeconfig
+talosconfig
+
+# IDE / Editor
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Images (prevent accidental commits of screenshots with sensitive info)
+*.png
+*.jpg
+*.jpeg
+*.gif
