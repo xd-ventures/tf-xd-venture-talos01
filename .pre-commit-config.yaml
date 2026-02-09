@@ -35,7 +35,7 @@ repos:
         args:
           - --hook-config=--tf-path=tofu
           - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-          - --args=--minimum-failure-severity=error
+          - --args=--minimum-failure-severity=warning
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
