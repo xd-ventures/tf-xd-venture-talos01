@@ -272,32 +272,6 @@ locals {
     local.cilium_config_patch,
   ])
 
-  # STABLE config patches for reinstall trigger comparison
-  # The Tailscale auth key changes frequently (expires after 1 hour), but we don't want
-  # to reinstall the server just because the key changed - the key is only used once
-  # during initial setup (TS_AUTH_ONCE=true). After that, Tailscale stores its state.
-  # This stable version uses a placeholder instead of the actual key.
-  tailscale_config_patch_stable = local.tailscale_enabled ? yamlencode({
-    apiVersion = "v1alpha1"
-    kind       = "ExtensionServiceConfig"
-    name       = "tailscale"
-    environment = concat(
-      [
-        "TS_AUTHKEY=STABLE_PLACEHOLDER", # Placeholder - actual key is volatile
-        "TS_AUTH_ONCE=true",
-      ],
-      var.tailscale_hostname != "" ? ["TS_HOSTNAME=${var.tailscale_hostname}"] : [],
-      [for arg in var.tailscale_extra_args : arg]
-    )
-  }) : ""
-
-  # Stable config patches used ONLY for reinstall trigger comparison
-  stable_config_patches = compact([
-    local.tailscale_config_patch_stable,
-    local.certsans_config_patch,
-    local.zfs_config_patch,
-    local.cilium_config_patch,
-  ])
 }
 
 # Generate machine configuration for control plane node
@@ -314,20 +288,6 @@ data "talos_machine_configuration" "controlplane" {
   # CRITICAL: Wait for Tailscale key to be created before generating config
   # Without this, the config is evaluated during planning before the key exists
   depends_on = [tailscale_tailnet_key.talos]
-}
-
-# STABLE machine configuration for reinstall trigger comparison
-# This uses stable_config_patches which has a placeholder for the Tailscale auth key
-# so that key expiration/regeneration doesn't trigger a cluster reinstall
-data "talos_machine_configuration" "controlplane_stable" {
-  cluster_name     = var.cluster_name
-  machine_type     = "controlplane"
-  cluster_endpoint = local.actual_cluster_endpoint
-  machine_secrets  = talos_machine_secrets.this.machine_secrets
-  talos_version    = var.talos_version
-
-  # Use STABLE config patches (with placeholder for volatile Tailscale auth key)
-  config_patches = local.stable_config_patches
 }
 
 # Generate talosconfig for talosctl
