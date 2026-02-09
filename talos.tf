@@ -1,16 +1,16 @@
 # Talos OS Configuration Resources
 #
-# CRITICAL FIXES APPLIED:
-# 1. Changed platform from "metal" to "openstack" - OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
-# 2. Removed sd-boot bootloader - OVH BYOI works better with GRUB (default)
-# 3. Explicitly set talos.platform=openstack kernel arg to ensure platform detection
-# 4. Fixed image URL construction for correct format
+# Configures Talos Linux for OVH bare metal with:
+# - OpenStack platform (OVH creates OpenStack format config drives)
+# - GRUB bootloader (default, best OVH BYOI compatibility)
+# - Cilium CNI with eBPF dataplane
+# - Tailscale for secure remote access
 
 # Generate cluster secrets including PKI
 resource "talos_machine_secrets" "this" {}
 
 # Create image factory schematic with extensions
-# CRITICAL: Explicitly set platform kernel arg to ensure openstack platform detection
+# Sets openstack platform kernel arg for OVH config drive compatibility
 resource "talos_image_factory_schematic" "this" {
   schematic = yamlencode({
     customization = {
@@ -18,14 +18,14 @@ resource "talos_image_factory_schematic" "this" {
       # OVH BYOI creates config drive with config-2 label and openstack/latest/user_data structure
       # Talos openstack platform supports this format
       extraKernelArgs = concat(
-        ["talos.platform=openstack"],  # OVH creates OpenStack format, use OpenStack platform
+        ["talos.platform=openstack"], # OVH creates OpenStack format, use OpenStack platform
         var.extra_kernel_args
       )
       systemExtensions = {
         officialExtensions = concat(
           [
-            "siderolabs/amd-ucode",  # AMD CPU microcode updates
-            "siderolabs/zfs",        # ZFS for data storage (mirrored NVMe drives)
+            "siderolabs/amd-ucode", # AMD CPU microcode updates
+            "siderolabs/zfs",       # ZFS for data storage (mirrored NVMe drives)
           ],
           # Conditionally include Tailscale extension when hostname and tailnet are configured
           var.tailscale_hostname != "" && var.tailscale_tailnet != "" ? ["siderolabs/tailscale"] : [],
@@ -33,8 +33,7 @@ resource "talos_image_factory_schematic" "this" {
         )
       }
     }
-    # REMOVED: bootloader = "sd-boot"
-    # Using default GRUB bootloader for better OVH BYOI compatibility
+    # Uses default GRUB bootloader (best compatibility with OVH BYOI)
   })
 }
 
@@ -48,7 +47,7 @@ data "talos_image_factory_urls" "this" {
   talos_version = var.talos_version
   schematic_id  = talos_image_factory_schematic.this.id
   architecture  = var.architecture
-  platform      = "openstack"  # OVH creates OpenStack format config drive, use OpenStack platform
+  platform      = "openstack" # OVH creates OpenStack format config drive, use OpenStack platform
 }
 
 # Local values for endpoint/node extraction and cluster endpoint resolution
@@ -67,8 +66,8 @@ locals {
   # See ADR-0009 for design rationale
   tailscale_endpoint_ip = (
     length(data.tailscale_device.talos_node) > 0
-    ? data.tailscale_device.talos_node[0].addresses[0]  # Dynamic lookup (preferred)
-    : coalesce(var.tailscale_ip, local.cluster_ip)       # Manual fallback
+    ? data.tailscale_device.talos_node[0].addresses[0] # Dynamic lookup (preferred)
+    : coalesce(var.tailscale_ip, local.cluster_ip)     # Manual fallback
   )
 
   # Replace <server-ip> placeholder with actual server IP from OVH resource
@@ -89,14 +88,14 @@ locals {
     ? "https://${local.tailscale_ts_net_hostname}:6443"
     : local.public_cluster_endpoint
   )
-  
+
   # Extract IP address from public cluster endpoint URL (always use public IP for bootstrap)
   # Format: https://IP:6443 -> IP
   cluster_ip = replace(
     replace(local.public_cluster_endpoint, "https://", ""),
     ":6443", ""
   )
-  
+
   # Use explicit endpoints/nodes if provided, otherwise use cluster IP
   # For initial bootstrap, always use public IP (Tailscale not yet available)
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
@@ -117,7 +116,7 @@ locals {
     environment = concat(
       [
         "TS_AUTHKEY=${local.tailscale_authkey}",
-        "TS_AUTH_ONCE=true",  # Auth key used only once, subsequent restarts use stored state
+        "TS_AUTH_ONCE=true", # Auth key used only once, subsequent restarts use stored state
       ],
       var.tailscale_hostname != "" ? ["TS_HOSTNAME=${var.tailscale_hostname}"] : [],
       [for arg in var.tailscale_extra_args : arg]
@@ -284,7 +283,7 @@ locals {
     name       = "tailscale"
     environment = concat(
       [
-        "TS_AUTHKEY=STABLE_PLACEHOLDER",  # Placeholder - actual key is volatile
+        "TS_AUTHKEY=STABLE_PLACEHOLDER", # Placeholder - actual key is volatile
         "TS_AUTH_ONCE=true",
       ],
       var.tailscale_hostname != "" ? ["TS_HOSTNAME=${var.tailscale_hostname}"] : [],
@@ -371,13 +370,13 @@ resource "talos_machine_bootstrap" "this" {
 # 2. Tailscale IP is dynamically assigned and unknown to Terraform
 # 3. User can verify health manually via: talosctl health --control-plane-nodes <tailscale-ip>
 data "talos_cluster_health" "this" {
-  count      = local.tailscale_enabled ? 0 : 1  # Skip when Tailscale is enabled
+  count      = local.tailscale_enabled ? 0 : 1 # Skip when Tailscale is enabled
   depends_on = [talos_machine_bootstrap.this]
 
   client_configuration   = talos_machine_secrets.this.client_configuration
   endpoints              = local.talos_endpoints
   control_plane_nodes    = local.talos_nodes
-  skip_kubernetes_checks = true  # Only check Talos services, not full Kubernetes stack
+  skip_kubernetes_checks = true # Only check Talos services, not full Kubernetes stack
 }
 
 # Extract kubeconfig for kubectl access

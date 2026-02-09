@@ -69,7 +69,7 @@ provider "argocd" {
   # Use port forwarding via kubernetes provider (creates ephemeral port-forward)
   # This is required because we can't resolve argocd-server.argocd.svc.cluster.local from local machine
   port_forward_with_namespace = "argocd"
-  insecure = true # Server runs in insecure mode behind Tailscale
+  insecure                    = true # Server runs in insecure mode behind Tailscale
 
   # Use admin credentials from the initial secret
   username = "admin"

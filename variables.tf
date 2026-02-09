@@ -12,7 +12,7 @@ variable "ovh_subsidiary" {
 variable "monitoring_enabled" {
   description = "Enable or disable OVH monitoring for the server"
   type        = bool
-  default     = false  # Typically disabled for Talos as it doesn't respond to OVH monitoring
+  default     = false # Typically disabled for Talos as it doesn't respond to OVH monitoring
 }
 
 variable "server_state" {
@@ -65,7 +65,7 @@ variable "architecture" {
 variable "use_raw_image" {
   description = "Use raw image format (.raw.xz) instead of qcow2. Default is false (qcow2) as it's been verified to work well with OVH BYOI."
   type        = bool
-  default     = false  # QCOW2 format is default as it's been tested and works reliably
+  default     = false # QCOW2 format is default as it's been tested and works reliably
 }
 
 variable "extra_kernel_args" {
@@ -154,13 +154,13 @@ variable "argocd_enabled" {
 variable "argocd_chart_version" {
   description = "ArgoCD Helm chart version. See: https://github.com/argoproj/argo-helm/releases"
   type        = string
-  default     = "7.7.16"  # Latest stable as of December 2024
+  default     = "7.7.16" # Latest stable as of December 2024
 }
 
 variable "argocd_server_insecure" {
   description = "Run ArgoCD server in insecure mode (no TLS). Safe when accessing via Tailscale + port-forward."
   type        = bool
-  default     = true  # Default true for easier local access via port-forward
+  default     = true # Default true for easier local access via port-forward
 }
 
 variable "argocd_deploy_guestbook" {

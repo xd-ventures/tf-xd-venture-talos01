@@ -67,7 +67,7 @@ output "talos_machine_config_raw" {
 output "config_drive_user_data_info" {
   description = "Information about config drive user-data (size/length for verification). Use 'tofu output config_drive_user_data_info' to view."
   value = {
-    length_bytes = length(data.talos_machine_configuration.controlplane.machine_configuration)
+    length_bytes    = length(data.talos_machine_configuration.controlplane.machine_configuration)
     first_100_chars = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, min(100, length(data.talos_machine_configuration.controlplane.machine_configuration)))
   }
   sensitive = true
@@ -100,7 +100,7 @@ output "config_drive_debug_info" {
     user_data_length      = length(data.talos_machine_configuration.controlplane.machine_configuration)
     user_data_starts_with = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, 20)
     cluster_endpoint      = replace(var.cluster_endpoint, "<server-ip>", ovh_dedicated_server.talos01.ip)
-    metadata_instance_id = var.cluster_name
+    metadata_instance_id  = var.cluster_name
     note                  = "OVH creates OpenStack format (config-2, openstack/latest/user_data). Talos OpenStack platform supports this format."
   }
   sensitive = true
@@ -115,11 +115,11 @@ output "bootstrap_completed" {
 output "debug_image_factory_urls" {
   description = "All available URLs from image factory"
   value = {
-    disk_image    = data.talos_image_factory_urls.this.urls.disk_image
-    iso           = try(data.talos_image_factory_urls.this.urls.iso, "N/A")
-    installer     = try(data.talos_image_factory_urls.this.urls.installer, "N/A")
-    kernel        = try(data.talos_image_factory_urls.this.urls.kernel, "N/A")
-    initramfs     = try(data.talos_image_factory_urls.this.urls.initramfs, "N/A")
+    disk_image = data.talos_image_factory_urls.this.urls.disk_image
+    iso        = try(data.talos_image_factory_urls.this.urls.iso, "N/A")
+    installer  = try(data.talos_image_factory_urls.this.urls.installer, "N/A")
+    kernel     = try(data.talos_image_factory_urls.this.urls.kernel, "N/A")
+    initramfs  = try(data.talos_image_factory_urls.this.urls.initramfs, "N/A")
   }
 }
 
@@ -169,8 +169,8 @@ output "tailscale_access_info" {
     k8s_api_endpoint   = "https://${local.tailscale_ts_net_hostname}:6443"
     security_note      = var.enable_firewall ? "Firewall ENABLED - Public IP access blocked. Access via Tailscale only." : "Cluster configured for Tailscale access. Set enable_firewall=true to block public IP."
     # NOTE: talosctl's gRPC resolver doesn't support MagicDNS, so we resolve the IP first
-    talosctl_command   = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP"
-  } : {
+    talosctl_command = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP"
+    } : {
     ts_net_hostname    = "Not configured"
     talos_api_endpoint = "https://${local.cluster_ip}:50000"
     k8s_api_endpoint   = "https://${local.cluster_ip}:6443"
@@ -193,7 +193,7 @@ output "firewall_status" {
     blocked_ports    = ["50000 (Talos API)", "6443 (K8s API)", "10250 (kubelet)", "2379-2380 (etcd)"]
     access_via       = "Tailscale only"
     emergency_access = "Use iKVM console or disable firewall with enable_firewall=false"
-  } : {
+    } : {
     status           = "DISABLED - Public IP access allowed"
     allowed_networks = ["0.0.0.0/0", "::/0"]
     blocked_ports    = []
@@ -206,13 +206,13 @@ output "firewall_status" {
 output "firewall_verification_commands" {
   description = "Commands to verify Tailscale connectivity before enabling firewall"
   value = local.tailscale_enabled ? {
-    step_1_get_ip        = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname})"
+    step_1_get_ip         = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname})"
     step_2_tailscale_ping = "tailscale ping $TSIP"
-    step_3_talos_api     = "talosctl --endpoints $TSIP --nodes $TSIP version"
-    step_4_k8s_api       = "curl -k https://$TSIP:6443/version"
-    step_5_enable        = "# If all pass: set enable_firewall = true in terraform.tfvars, then run: tofu apply"
-    note                 = "Run these commands in order. All must succeed before enabling firewall."
-  } : {
+    step_3_talos_api      = "talosctl --endpoints $TSIP --nodes $TSIP version"
+    step_4_k8s_api        = "curl -k https://$TSIP:6443/version"
+    step_5_enable         = "# If all pass: set enable_firewall = true in terraform.tfvars, then run: tofu apply"
+    note                  = "Run these commands in order. All must succeed before enabling firewall."
+    } : {
     error = "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
   }
 }
@@ -220,9 +220,9 @@ output "firewall_verification_commands" {
 output "firewall_post_enable_test" {
   description = "Commands to verify firewall is working after enabling"
   value = local.tailscale_enabled ? {
-    test_public_blocked   = "curl -k --connect-timeout 5 https://${local.cluster_ip}:6443/version  # Should FAIL/timeout"
-    test_tailscale_works  = "curl -k https://$(dig +short ${local.tailscale_ts_net_hostname}):6443/version  # Should SUCCEED"
-  } : {
+    test_public_blocked  = "curl -k --connect-timeout 5 https://${local.cluster_ip}:6443/version  # Should FAIL/timeout"
+    test_tailscale_works = "curl -k https://$(dig +short ${local.tailscale_ts_net_hostname}):6443/version  # Should SUCCEED"
+    } : {
     error = "Tailscale not configured"
   }
 }
@@ -265,7 +265,7 @@ output "argocd_access_info" {
     # Helm release info
     helm_chart_version = var.argocd_chart_version
     namespace          = "argocd"
-  } : {
+    } : {
     status = "ArgoCD not enabled. Set argocd_enabled = true to deploy."
   }
 }
@@ -273,15 +273,15 @@ output "argocd_access_info" {
 output "argocd_guestbook_status" {
   description = "Status of the ArgoCD guestbook example application"
   value = var.argocd_enabled && var.argocd_deploy_guestbook ? {
-    deployed      = true
-    app_name      = "guestbook"
-    namespace     = "default"
-    sync_policy   = "Automated (prune + self-heal)"
-    source_repo   = "https://github.com/argoproj/argocd-example-apps.git"
-    source_path   = "guestbook"
-    view_command  = "argocd app get guestbook"
-    sync_command  = "argocd app sync guestbook"
-  } : {
+    deployed     = true
+    app_name     = "guestbook"
+    namespace    = "default"
+    sync_policy  = "Automated (prune + self-heal)"
+    source_repo  = "https://github.com/argoproj/argocd-example-apps.git"
+    source_path  = "guestbook"
+    view_command = "argocd app get guestbook"
+    sync_command = "argocd app sync guestbook"
+    } : {
     deployed = false
     note     = var.argocd_enabled ? "Set argocd_deploy_guestbook = true to deploy the example app" : "ArgoCD not enabled"
   }

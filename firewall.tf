@@ -48,7 +48,7 @@ locals {
         protocol = "tcp"
       }
       ingress = [
-        { subnet = var.pod_network_cidr },      # Pods need API access (CoreDNS, controllers, etc.)
+        { subnet = var.pod_network_cidr }, # Pods need API access (CoreDNS, controllers, etc.)
         { subnet = var.tailscale_ipv4_cidr },
         { subnet = var.tailscale_ipv6_cidr }
       ]

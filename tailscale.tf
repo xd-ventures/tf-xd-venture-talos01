@@ -30,11 +30,11 @@ provider "tailscale" {
 resource "tailscale_tailnet_key" "talos" {
   count = local.tailscale_enabled ? 1 : 0
 
-  reusable      = false  # Single-use key (matches TS_AUTH_ONCE=true)
-  ephemeral     = false  # Persistent device (not removed when offline)
-  preauthorized = true   # Auto-approve the device (no manual approval needed)
-  expiry        = 3600   # 1 hour expiry (only needs to last through deployment)
-  description   = replace(replace(var.cluster_name, "-", ""), "_", "")  # Alphanumeric only
+  reusable      = false                                                # Single-use key (matches TS_AUTH_ONCE=true)
+  ephemeral     = false                                                # Persistent device (not removed when offline)
+  preauthorized = true                                                 # Auto-approve the device (no manual approval needed)
+  expiry        = 3600                                                 # 1 hour expiry (only needs to last through deployment)
+  description   = replace(replace(var.cluster_name, "-", ""), "_", "") # Alphanumeric only
   tags          = var.tailscale_tags
 
   # Recreate key if it becomes invalid (expired, revoked, etc.)
@@ -55,7 +55,7 @@ data "tailscale_device" "talos_node" {
   count = local.tailscale_enabled && var.tailscale_device_lookup ? 1 : 0
 
   hostname = var.tailscale_hostname
-  wait_for = "180s"  # Wait up to 3 min for device to appear after bootstrap
+  wait_for = "180s" # Wait up to 3 min for device to appear after bootstrap
 
   depends_on = [talos_machine_bootstrap.this]
 }

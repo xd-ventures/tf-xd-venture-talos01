@@ -1,9 +1,8 @@
 # OVH Bare Metal Server Configuration
 #
-# FIXES APPLIED:
-# 1. Corrected image_url to use nocloud platform image
-# 2. Fixed EFI bootloader path for GRUB (not sd-boot)
-# 3. Added image_type handling for raw images (OVH prefers raw for BYOI)
+# Deploys Talos OS on an OVH dedicated server using BYOI (Bring Your Own Image).
+# Uses openstack platform image with GRUB bootloader for OVH compatibility.
+# Supports both qcow2 and raw image formats.
 
 resource "ovh_dedicated_server" "talos01" {
   ovh_subsidiary = var.ovh_subsidiary
@@ -23,18 +22,18 @@ resource "ovh_dedicated_server" "talos01" {
 locals {
   # The disk_image URL from the data source will be something like:
   # https://factory.talos.dev/image/SCHEMATIC_ID/v1.12.0/openstack-amd64.raw.xz
-  
+
   # IMPORTANT: Talos Image Factory provides multiple image formats at predictable URLs
   # The provider's data source only returns the .raw.xz URL, but other formats are available:
   # - .raw.xz (compressed raw, returned by data source)
   # - .qcow2 (uncompressed qcow2, available but not in data source)
   # - .iso (ISO format, available but not in data source)
   # The URL pattern is consistent: replace the extension to get other formats
-  
+
   # Raw image URL (compressed .raw.xz format)
   # OVH can decompress .xz automatically, but uncompressed formats are preferred for BYOI
   image_url_raw = data.talos_image_factory_urls.this.urls.disk_image
-  
+
   # QCOW2 image URL (uncompressed .qcow2 format) - VERIFIED TO WORK
   # Talos Image Factory serves qcow2 format at predictable URLs by replacing .raw.xz with .qcow2
   # This has been verified: the qcow2 URL exists and returns HTTP 200 with valid image data
@@ -42,23 +41,23 @@ locals {
   image_url_qcow2 = replace(
     replace(
       data.talos_image_factory_urls.this.urls.disk_image,
-      ".raw.xz", ".qcow2"  # Replace compressed raw (.raw.xz) with uncompressed qcow2
+      ".raw.xz", ".qcow2" # Replace compressed raw (.raw.xz) with uncompressed qcow2
     ),
-    ".raw.zst", ".qcow2"  # Handle .zst compression format (.raw.zst -> .qcow2)
+    ".raw.zst", ".qcow2" # Handle .zst compression format (.raw.zst -> .qcow2)
   )
-  
+
   # Select image format based on use_raw_image variable
   # Default is qcow2 (false) as it's been verified to work well with OVH BYOI
-  image_url = var.use_raw_image ? local.image_url_raw : local.image_url_qcow2
+  image_url  = var.use_raw_image ? local.image_url_raw : local.image_url_qcow2
   image_type = var.use_raw_image ? "raw" : "qcow2"
-  
+
   # EFI bootloader path for Talos with GRUB (default bootloader)
   # For GRUB-based Talos images:
   efi_bootloader_path_grub = "\\EFI\\BOOT\\BOOTX64.EFI"
-  
+
   # For sd-boot (unified kernel image) - NOT recommended for OVH BYOI:
   # efi_bootloader_path_sdboot = "\\EFI\\Linux\\Talos-${var.talos_version}.efi"
-  
+
 }
 
 # Trigger reinstall when image URL or core cluster config changes
@@ -93,25 +92,25 @@ resource "terraform_data" "reinstall_trigger" {
 resource "ovh_dedicated_server_reinstall_task" "talos" {
   service_name = ovh_dedicated_server.talos01.service_name
   os           = "byoi_64"
-  
+
   customizations {
     hostname = var.cluster_name
-    
-    # Image URL - using platform-specific image (nocloud or openstack)
+
+    # Image URL - using openstack platform image for OVH BYOI
     image_url = local.image_url
-    
+
     # Image type - must match the actual image format
     image_type = local.image_type
-    
+
     # EFI bootloader path - for GRUB-based boot
     # OVH requires backslashes for the path
     efi_bootloader_path = local.efi_bootloader_path_grub
-    
+
     # Config drive user data - Talos expects raw YAML machine config
     # OVH will base64 encode this automatically, so we pass it as plain text
     # Double-encoding would prevent Talos from reading it
     config_drive_user_data = data.talos_machine_configuration.controlplane.machine_configuration
-    
+
     # Config drive metadata - minimal metadata to ensure config drive structure
     # This helps ensure the config drive is properly mounted and recognized
     config_drive_metadata = {
@@ -119,7 +118,7 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
       local-hostname = var.cluster_name
     }
   }
-  
+
   # CRITICAL: Force replacement when core config changes (via stable trigger)
   # We use terraform_data.reinstall_trigger which tracks only STABLE values
   # (excludes volatile Tailscale auth key to prevent unnecessary reinstalls)

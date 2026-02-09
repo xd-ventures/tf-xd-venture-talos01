@@ -161,8 +161,8 @@ resource "argocd_application" "guestbook" {
     # Sync policy - automated sync with self-healing
     sync_policy {
       automated {
-        prune       = true  # Remove resources not in Git
-        self_heal   = true  # Revert manual changes
+        prune       = true # Remove resources not in Git
+        self_heal   = true # Revert manual changes
         allow_empty = false
       }
 
