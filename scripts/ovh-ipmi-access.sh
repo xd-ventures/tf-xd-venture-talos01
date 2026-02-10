@@ -7,7 +7,7 @@
 # - Serial over LAN (SOL) console
 # - KVM-over-IP (if supported)
 
-set -e
+set -euo pipefail
 
 SERVICE_NAME="${1:-}"
 
