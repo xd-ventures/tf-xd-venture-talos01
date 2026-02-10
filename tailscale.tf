@@ -98,4 +98,3 @@ output "tailscale_device_ip" {
   description = "Tailscale device IP (from data source lookup, always current)"
   value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].addresses[0] : null
 }
-
