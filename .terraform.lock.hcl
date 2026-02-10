@@ -6,6 +6,7 @@ provider "registry.opentofu.org/argoproj-labs/argocd" {
   constraints = "~> 7.0"
   hashes = [
     "h1:Az4zcv99gGxSE3FAQFn2MCiBeRV388SpPXrs8LBcnNA=",
+    "h1:fZivQ+zNUqBdGgdVUYL4jENaoGZ8Bnx1qEiG3a2rKeE=",
     "zh:086749014d194fe082ab55bac2ee424246fb8366c1f86de1aeabe887b235e24e",
     "zh:13b21adaeabb2b2154121afe298cfb6172c0425294f8857559391c464b6a1f84",
     "zh:4ec9829dae9bbaa604d61590ce9afdd3eb4140a143f740805c967a872efe479c",
@@ -23,6 +24,7 @@ provider "registry.opentofu.org/hashicorp/helm" {
   version     = "2.17.0"
   constraints = "~> 2.17"
   hashes = [
+    "h1:69PnHoYrrDrm7C8+8PiSvRGPI55taqL14SvQR/FGM+g=",
     "h1:ShIag7wqd5Rs+zYpVMpjAh+T0ozr4XGYfSTKWqceQBY=",
     "zh:02690815e35131a42cb9851f63a3369c216af30ad093d05b39001d43da04b56b",
     "zh:27a62f12b29926387f4d71aeeee9f7ffa0ccb81a1b6066ee895716ad050d1b7a",
@@ -42,6 +44,7 @@ provider "registry.opentofu.org/hashicorp/kubernetes" {
   constraints = "~> 2.35"
   hashes = [
     "h1:ems+O2dA7atxMWpbtqIrsH7Oa+u+ERWSfpMaFnZPbh0=",
+    "h1:nY7J9jFXcsRINog0KYagiWZw1GVYF9D2JmtIB7Wnrao=",
     "zh:1096b41c4e5b2ee6c1980916fb9a8579bc1892071396f7a9432be058aabf3cbc",
     "zh:2959fde9ae3d1deb5e317df0d7b02ea4977951ee6b9c4beb083c148ca8f3681c",
     "zh:5082f98fcb3389c73339365f7df39fc6912bf2bd1a46d5f97778f441a67fd337",
@@ -58,6 +61,7 @@ provider "registry.opentofu.org/ovh/ovh" {
   version     = "2.11.0"
   constraints = "~> 2.0"
   hashes = [
+    "h1:XlPqU8iVvTM+TR0cgkTh93PBDeWayoBo709kewzP9II=",
     "h1:n72jkLuNqAztr+lSggZe7k1kUqunVOmym10Uk1qVSt0=",
     "zh:1991e3d0c663e1b6a5a886f0a97cf71e9275f39e60e73e5d83bd83d945c9feee",
     "zh:1d2ed8d9ed0205677151179a8d385a9e5df656fa70b29efdc5b776eb5d6b6c9c",
@@ -80,6 +84,7 @@ provider "registry.opentofu.org/siderolabs/talos" {
   version     = "0.10.1"
   constraints = "~> 0.6"
   hashes = [
+    "h1:1/HTp6cDJWQJzRj8preKQvw3x/qffivOJhZx27OmAig=",
     "h1:fc7ekyeFDNNvScqgHgowGjM9jnKFyUOMGfnEKJwuf1c=",
     "zh:0fa82a384b25a58b65523e0ea4768fa1212b1f5cfc0c9379d31162454fedcc9d",
     "zh:349463cdd4cdb36e03276fdb855e687242237c7cf0bd5871aea995a83838c52e",
@@ -103,6 +108,7 @@ provider "registry.opentofu.org/tailscale/tailscale" {
   version     = "0.26.0"
   constraints = "~> 0.24"
   hashes = [
+    "h1:57dhA1q1fqZwxDxby09+pm6WTJDWzofsL1L0C/yEWBc=",
     "h1:e4PSH3jOhqRqIx6RJ4/ifl0kdKS3kMzi36x7EuOHDr4=",
     "zh:14172653272a2760ba9f4a8a49633c9bf415ffc3a26b34c07c86cb20ed030510",
     "zh:3713a43987205be7690b8c2371d505b136f7d99aaed88a22286ee998ec0d9ef7",
