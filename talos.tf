@@ -101,9 +101,10 @@ locals {
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
   talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
 
-  # Tailscale auth key is always auto-generated via tailscale_tailnet_key resource
-  # This ensures fresh, single-use keys for each deployment (no stale keys from env vars)
-  tailscale_authkey = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].key : ""
+  # Tailscale auth key — read from the stable proxy to avoid drift.
+  # The proxy captures the key at creation time and ignores subsequent expiry.
+  # Fresh keys are generated on reinstall via replace_triggered_by.
+  tailscale_authkey = local.tailscale_enabled ? terraform_data.tailscale_key_stable[0].output : ""
 
   # Tailscale extension service configuration patch
   # NOTE: TS_AUTH_ONCE=true means the auth key is used only once during initial setup.
