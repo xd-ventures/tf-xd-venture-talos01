@@ -62,4 +62,5 @@ platform = "openstack"
 ## References
 - [Talos Platform Detection](https://www.talos.dev/v1.11/reference/platforms/)
 - [OpenStack Config Drive](https://docs.openstack.org/nova/latest/user/config-drive.html)
-- CONFIG_DRIVE_ANALYSIS.md in this repository
+- [ADR-0011: OVH Config Drive Format](0011-ovh-config-drive-format.md)
+- [inspect-config-drive.sh](../../scripts/inspect-config-drive.sh) — rescue mode diagnostic tool
