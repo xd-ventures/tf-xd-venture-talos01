@@ -30,16 +30,20 @@ echo "Checking server: $SERVICE_NAME"
 echo "================================"
 
 # Use Python OVH SDK for API calls
-python3 << EOF
+export SERVICE_NAME
+python3 << 'EOF'
 import ovh
 import json
+import os
 import sys
+
+service_name = os.environ['SERVICE_NAME']
 
 try:
     client = ovh.Client()
 
     # Get server details
-    server = client.get(f'/dedicated/server/${SERVICE_NAME}')
+    server = client.get(f'/dedicated/server/{service_name}')
     print(f"Server Name: {server.get('name', 'N/A')}")
     print(f"State: {server.get('state', 'N/A')}")
     print(f"IP: {server.get('ip', 'N/A')}")
@@ -47,9 +51,9 @@ try:
 
     # Get recent tasks
     print("\nRecent Tasks:")
-    tasks = client.get(f'/dedicated/server/${SERVICE_NAME}/task')
+    tasks = client.get(f'/dedicated/server/{service_name}/task')
     for task_id in tasks[-5:]:
-        task = client.get(f'/dedicated/server/${SERVICE_NAME}/task/{task_id}')
+        task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
         print(f"  [{task_id}] {task.get('function', 'N/A')}: {task.get('status', 'N/A')}")
         if task.get('comment'):
             print(f"           Comment: {task.get('comment')}")
