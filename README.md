@@ -77,10 +77,15 @@ export OVH_APPLICATION_SECRET="your-app-secret"
 export OVH_CONSUMER_KEY="your-consumer-key"
 
 # Tailscale OAuth (create at https://login.tailscale.com/admin/settings/oauth)
-# Required scope: auth_keys — see ADR-0008 for setup details
+# Scopes: auth_keys + devices:read — see ADR-0008 for setup details
 export TAILSCALE_OAUTH_CLIENT_ID="your-client-id"
 export TAILSCALE_OAUTH_CLIENT_SECRET="tskey-client-xxx"
 ```
+
+> [!NOTE]
+> The `devices:read` scope enables automatic Tailscale IP discovery, which is required
+> for reliable firewall configuration. Without it, you must manage IPs manually.
+> See [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md) for scope details.
 
 ### 2. Configure Variables
 

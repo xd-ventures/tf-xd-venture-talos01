@@ -112,17 +112,40 @@ locals {
 
 ### Workflow
 
-**Fresh Deploy:**
+**Automatic Discovery (default, recommended):**
+
+The standard two-phase deployment uses `tailscale_device_lookup=true` (default).
+Requires `devices:read` OAuth scope.
+
 ```bash
-tofu apply -var="tailscale_device_lookup=false" -var="enable_firewall=false"
+# Phase 1: Bootstrap without firewall (device doesn't exist yet in tailnet)
+tofu apply -var="enable_firewall=false"
+
 # Verify Tailscale connectivity
-tofu apply -var="tailscale_device_lookup=true" -var="enable_firewall=true"
+tofu output firewall_verification_commands
+
+# Phase 2: Enable firewall (data source resolves Tailscale IP automatically)
+tofu apply -var="enable_firewall=true"
 ```
 
 **Reinstall:**
 ```bash
 # Delete old device from Tailscale admin (or let it auto-rename)
 tofu apply  # Data source waits for new device, gets new IP automatically
+```
+
+**Manual IP Management (advanced, not validated by maintainers):**
+
+Setting `tailscale_device_lookup=false` disables automatic IP discovery. You
+MUST then provide `tailscale_ip` manually if the firewall is enabled, or
+Terraform will attempt to apply firewall rules via the public IP, which will
+result in lockout. This path exists for environments where the `devices:read`
+OAuth scope cannot be granted. It requires manual IP management on every
+reinstall. A `precondition` on the firewall resource will fail the plan if
+neither lookup nor manual IP is configured.
+
+```bash
+tofu apply -var="tailscale_device_lookup=false" -var="tailscale_ip=100.x.y.z" -var="enable_firewall=true"
 ```
 
 ## Consequences

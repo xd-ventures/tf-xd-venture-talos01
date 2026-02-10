@@ -116,10 +116,16 @@ Use **OAuth Client with `auth_keys` scope** for Tailscale authentication in Terr
 
 ### Required Scopes
 
-| Scope | Purpose | Required |
-|-------|---------|----------|
-| `auth_keys` | Generate pre-auth keys for device registration | Yes |
+| Scope | Purpose | Recommendation |
+|-------|---------|----------------|
+| `auth_keys` | Generate pre-auth keys for device registration | **Required** |
+| `devices:read` | Auto-discover Tailscale IP for firewall operations (ADR-0009) | **Recommended** |
 | `devices:core` | Delete/manage devices (for cleanup on destroy) | Optional |
+
+> **Note:** Without `devices:read`, automatic Tailscale IP discovery is disabled (`tailscale_device_lookup`
+> must be set to `false`). You must then manually track the node's Tailscale IP and update `tailscale_ip`
+> after every reinstall. If you enable the firewall without a valid Tailscale IP, Terraform will attempt to
+> apply rules via the public IP, causing lockout. This manual path is not validated by the project maintainers.
 
 ### Implementation
 
@@ -138,7 +144,7 @@ Add to Tailscale ACL policy:
 #### 2. OAuth Client Creation
 
 In Tailscale Admin Console -> Settings -> OAuth clients:
-- Scopes: `auth_keys` (minimum) or `auth_keys` + `devices:core`
+- Scopes: `auth_keys` + `devices:read` (recommended), optionally add `devices:core` for cleanup
 - Tags: `tag:terraform` (owns `tag:k8s-cluster`)
 
 #### 3. Environment Variables

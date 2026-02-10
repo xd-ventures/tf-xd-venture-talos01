@@ -24,14 +24,14 @@ use_raw_image    = false                           # Use raw (.raw.xz) format if
 #   TAILSCALE_OAUTH_CLIENT_SECRET="..."
 #
 # Setup OAuth client at: Tailscale Admin -> Settings -> OAuth clients
-# Required scopes: auth_keys
+# Recommended scopes: auth_keys + devices:read (see ADR-0008)
 # Required ACL: {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"]}}
 #
 tailscale_hostname      = "talos-xd-venture"     # Hostname for the Tailscale node (without .ts.net suffix)
 tailscale_tailnet       = "tail12345"            # Tailnet name (find in Tailscale admin console, part after hostname in *.ts.net)
 tailscale_tags          = ["tag:k8s-cluster"]    # Tags for the device (must be owned by OAuth client)
-tailscale_device_lookup = true                   # Auto-discover IP via Tailscale API (set false for fresh deploys)
-# tailscale_ip          = ""                     # Manual IP override (only needed if device_lookup=false)
+# tailscale_device_lookup = true                  # Auto-discover IP via Tailscale API (default: true, requires 'devices:read' scope)
+# tailscale_ip          = ""                     # Manual IP override (only needed if device_lookup=false — not validated by maintainers)
 # tailscale_extra_args  = []                     # Extra args (e.g., ["TS_ACCEPT_ROUTES=true", "TS_ADVERTISE_EXIT_NODE=true"])
 
 # Firewall Configuration (blocks public IP access, allows only Tailscale)
