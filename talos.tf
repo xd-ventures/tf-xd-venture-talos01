@@ -187,6 +187,11 @@ locals {
       name: cilium-install
       namespace: kube-system
     ---
+    # NOTE: cluster-admin is required because the Cilium installer creates CRDs,
+    # RBAC, DaemonSets, ConfigMaps, and Services across multiple API groups.
+    # A scoped ClusterRole would be fragile and need updating with each Cilium release.
+    # Risk is mitigated by: ttlSecondsAfterFinished cleans up the Job pod,
+    # and the ServiceAccount is only usable within the completed Job's context.
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
     metadata:
@@ -207,6 +212,7 @@ locals {
       namespace: kube-system
     spec:
       backoffLimit: 10
+      ttlSecondsAfterFinished: 600
       template:
         metadata:
           labels:
@@ -226,7 +232,7 @@ locals {
           hostNetwork: true
           containers:
             - name: cilium-install
-              image: quay.io/cilium/cilium-cli-ci:latest
+              image: quay.io/cilium/cilium-cli-ci:${var.cilium_cli_version}
               env:
                 - name: KUBERNETES_SERVICE_HOST
                   valueFrom:
