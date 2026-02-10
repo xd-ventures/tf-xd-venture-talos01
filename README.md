@@ -11,6 +11,8 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 - **GitOps Ready**: ArgoCD integration for application deployment
 - **Full Automation**: Single `tofu apply` for complete cluster provisioning
 
+> **Scope**: This project deploys a single-node cluster on one dedicated server. Version upgrades trigger a full reinstall with planned downtime (~15-30 minutes). Designed for development, homelab, and small-team production workloads where maintenance windows are acceptable. See [ADR-0012](docs/adr/0012-single-node-destructive-upgrades.md) for the multi-node upgrade path.
+
 ## Architecture Overview
 
 ```

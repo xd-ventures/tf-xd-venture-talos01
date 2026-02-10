@@ -17,6 +17,7 @@ This directory contains Architecture Decision Records (ADRs) documenting key tec
 | [0009](0009-tailscale-ip-resolution-strategy.md) | Tailscale IP Resolution | Accepted | Dynamic lookup via `tailscale_device` data source |
 | [0010](0010-terraform-state-migration-to-ovh-object-storage.md) | State Migration to OVH | Accepted | OVH Object Storage with versioning enabled |
 | [0011](0011-ovh-config-drive-format.md) | OVH Config Drive Format | Accepted | Use `platform=openstack` for OVH config drive |
+| [0012](0012-single-node-destructive-upgrades.md) | Single-Node Deployment | Accepted | Single node with reinstall-based upgrades |
 
 ## ADR Format
 
