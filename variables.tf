@@ -180,7 +180,7 @@ variable "argocd_enabled" {
 variable "argocd_chart_version" {
   description = "ArgoCD Helm chart version. See: https://github.com/argoproj/argo-helm/releases"
   type        = string
-  default     = "7.7.16" # Latest stable as of December 2024
+  default     = "7.7.16"
 }
 
 variable "argocd_server_insecure" {
