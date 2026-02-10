@@ -1,0 +1,33 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":gitSignOff"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 9am on Monday"],
+  "timezone": "Europe/Warsaw",
+  "prHourlyLimit": 3,
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "automerge": false
+    },
+    {
+      "description": "Group all pre-commit hook updates",
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit-hooks",
+      "automerge": false
+    },
+    {
+      "description": "Group all OpenTofu provider updates",
+      "matchManagers": ["terraform"],
+      "groupName": "opentofu-providers",
+      "automerge": false
+    }
+  ]
+}
