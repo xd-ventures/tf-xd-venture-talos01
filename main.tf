@@ -136,19 +136,3 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     ]
   }
 }
-
-# Output for debugging
-output "installation_image_url" {
-  description = "The image URL being used for installation"
-  value       = local.image_url
-}
-
-output "installation_image_type" {
-  description = "The image type being used"
-  value       = local.image_type
-}
-
-output "efi_bootloader_path" {
-  description = "The EFI bootloader path being used"
-  value       = local.efi_bootloader_path_grub
-}

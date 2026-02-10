@@ -353,9 +353,3 @@ resource "talos_cluster_kubeconfig" "this" {
   node                 = local.cluster_ip
   endpoint             = local.cluster_ip
 }
-
-# Output the raw disk image URL for debugging
-output "debug_disk_image_url" {
-  description = "Raw disk image URL from image factory (for debugging)"
-  value       = data.talos_image_factory_urls.this.urls.disk_image
-}
