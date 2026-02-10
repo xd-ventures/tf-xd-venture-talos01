@@ -102,15 +102,33 @@ variable "tailscale_tailnet" {
 }
 
 variable "tailscale_ip" {
-  description = "Manual Tailscale IP override. Used as fallback when device lookup is disabled or fails."
+  description = <<-EOT
+    Manual Tailscale IP override. Only used when tailscale_device_lookup is false.
+
+    You are responsible for keeping this value current. Tailscale IPs change on device
+    re-registration, which means this value can become stale after reinstalls. A stale IP
+    will cause firewall configuration to target a non-existent endpoint. Prefer
+    tailscale_device_lookup = true to avoid this class of issue.
+  EOT
   type        = string
   default     = ""
 }
 
 variable "tailscale_device_lookup" {
-  description = "Auto-discover Tailscale IP via API. Requires 'devices:read' OAuth scope. See ADR-0009."
+  description = <<-EOT
+    Auto-discover Tailscale IP via API after bootstrap. Recommended for all deployments.
+
+    When true (default): Queries Tailscale API for the device's current 100.x.y.z IP.
+    This keeps the cluster endpoint and firewall configuration correct across reinstalls
+    without manual intervention. Requires 'devices:read' OAuth scope (see ADR-0008).
+
+    When false: Falls back to manual tailscale_ip variable. If tailscale_ip is also empty,
+    uses the public IP — which will cause lockout if the firewall is enabled. This path
+    requires manual IP management on every reinstall and is not validated by the project
+    maintainers. See ADR-0009 for details.
+  EOT
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "tailscale_extra_args" {

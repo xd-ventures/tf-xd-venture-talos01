@@ -169,11 +169,30 @@ resource "talos_machine_configuration_apply" "firewall" {
 
   depends_on = [talos_machine_bootstrap.this]
 
+  lifecycle {
+    precondition {
+      condition = (
+        !local.tailscale_enabled ||
+        var.tailscale_device_lookup ||
+        var.tailscale_ip != ""
+      )
+      error_message = <<-EOT
+        LOCKOUT RISK: Firewall is enabled with Tailscale but there is no way to resolve the
+        Tailscale IP. The firewall will block public IP access, but Terraform would connect
+        via the public IP — causing immediate lockout.
+
+        Fix ONE of:
+        1. Set tailscale_device_lookup = true and add 'devices:read' scope to your
+           Tailscale OAuth client (recommended — see ADR-0008)
+        2. Set tailscale_ip to the node's Tailscale IP (100.x.y.z)
+      EOT
+    }
+  }
+
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
 
   # Use Tailscale IP when enabled (public IP is blocked by firewall)
-  # Set var.tailscale_ip to the resolved IP: dig +short <hostname>.ts.net
   # This is required because the Talos provider may not have access to Tailscale's MagicDNS
   node     = local.tailscale_enabled ? local.tailscale_endpoint_ip : local.cluster_ip
   endpoint = local.tailscale_enabled ? local.tailscale_endpoint_ip : local.cluster_ip

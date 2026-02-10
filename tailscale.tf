@@ -8,7 +8,8 @@
 #    {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"], "tag:terraform": []}}
 #
 # 2. Create OAuth client at: Tailscale Admin -> Settings -> OAuth clients
-#    - Scopes: auth_keys (minimum), optionally devices:core for cleanup
+#    - Scopes: auth_keys + devices:read (recommended)
+#      Add devices:core for automated device cleanup on destroy
 #    - Tags: tag:terraform
 #
 # 3. Set environment variables:
@@ -48,9 +49,9 @@ resource "tailscale_tailnet_key" "talos" {
 # and returns the current IP address. This avoids stale IPs in terraform.tfvars.
 #
 # Requirements:
-# - OAuth client needs 'devices:read' scope (not included in the default auth_keys-only setup)
+# - OAuth client needs 'devices:read' scope (included in the recommended setup)
 # - Device must already exist in the tailnet
-# - Set tailscale_device_lookup=true to enable (default: false)
+# - tailscale_device_lookup=true by default (set false only for restricted environments)
 data "tailscale_device" "talos_node" {
   count = local.tailscale_enabled && var.tailscale_device_lookup ? 1 : 0
 
