@@ -154,13 +154,36 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 | Disk (STATE) | LUKS2 | Talos encryption |
 | Disk (Data) | ZFS encryption (optional) | At-rest encryption |
 
+## Deployment Topology
+
+This project deploys a **single control plane node** with `allowSchedulingOnControlPlanes = true`. This is a deliberate choice — see [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for the full rationale.
+
+### Upgrade Mechanics
+
+Version upgrades (`talos_version` change) trigger a full OVH BYOI reinstall via `tofu apply`. This wipes the disk including etcd state and ZFS pools. Expected downtime: 15-30 minutes. Workloads redeploy automatically via ArgoCD.
+
+For non-destructive upgrades that preserve data, use `talosctl upgrade` with the installer image from `tofu output talos_installer_image`. See ADR-0012 for detailed guidance on when to use each approach.
+
+### Single-Node Trade-offs
+
+| Aspect | Implication |
+|--------|-------------|
+| Availability | No fault tolerance — any node failure is a total cluster outage |
+| Maintenance | Every upgrade or maintenance task requires cluster downtime |
+| etcd | Quorum of 1 — no redundancy for cluster state |
+| Data | ZFS pools do not survive reinstall — external backups required for persistent data |
+| Monitoring | Observability stack runs on the node it monitors |
+
 ## Extension Points
 
 ### Adding Nodes
-1. Provision additional OVH servers
-2. Join to existing Tailscale network
-3. Apply worker node Talos config
-4. ZFS automatically handles replication
+This requires significant infrastructure changes (see [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for details):
+1. Provision additional OVH servers (separate `ovh_dedicated_server` resources)
+2. Open etcd ports (2379-2380) between control plane nodes
+3. Add API server load balancer or Talos VIP
+4. Configure Cilium tunnel mode for cross-node pod networking
+5. Create separate machine configs for control plane vs. worker nodes
+6. Each node needs its own Tailscale identity
 
 ### Adding Storage
 1. Create additional ZFS datasets
