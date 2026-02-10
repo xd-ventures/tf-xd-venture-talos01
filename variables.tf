@@ -108,9 +108,9 @@ variable "tailscale_ip" {
 }
 
 variable "tailscale_device_lookup" {
-  description = "Auto-discover Tailscale IP via API. Set false for fresh deploys where device doesn't exist yet. See ADR-0009."
+  description = "Auto-discover Tailscale IP via API. Requires 'devices:read' OAuth scope. See ADR-0009."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "tailscale_extra_args" {

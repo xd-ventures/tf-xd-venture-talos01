@@ -41,7 +41,6 @@ resource "tailscale_tailnet_key" "talos" {
   recreate_if_invalid = "always"
 }
 
-# Output the generated key info (for debugging, key itself is sensitive)
 # Tailscale device data source for dynamic IP lookup
 # See ADR-0009 for design rationale
 #
@@ -49,8 +48,9 @@ resource "tailscale_tailnet_key" "talos" {
 # and returns the current IP address. This avoids stale IPs in terraform.tfvars.
 #
 # Requirements:
-# - OAuth client needs 'devices:read' scope
-# - Device must exist (set tailscale_device_lookup=false for fresh deploys)
+# - OAuth client needs 'devices:read' scope (not included in the default auth_keys-only setup)
+# - Device must already exist in the tailnet
+# - Set tailscale_device_lookup=true to enable (default: false)
 data "tailscale_device" "talos_node" {
   count = local.tailscale_enabled && var.tailscale_device_lookup ? 1 : 0
 

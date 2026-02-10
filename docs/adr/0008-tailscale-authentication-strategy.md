@@ -119,6 +119,7 @@ Use **OAuth Client with `auth_keys` scope** for Tailscale authentication in Terr
 | Scope | Purpose | Required |
 |-------|---------|----------|
 | `auth_keys` | Generate pre-auth keys for device registration | Yes |
+| `devices:read` | Auto-discover Tailscale IP (`tailscale_device_lookup=true`) | Optional |
 | `devices:core` | Delete/manage devices (for cleanup on destroy) | Optional |
 
 ### Implementation

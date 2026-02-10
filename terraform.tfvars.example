@@ -30,7 +30,7 @@ use_raw_image    = false                           # Use raw (.raw.xz) format if
 tailscale_hostname      = "talos-xd-venture"     # Hostname for the Tailscale node (without .ts.net suffix)
 tailscale_tailnet       = "tail12345"            # Tailnet name (find in Tailscale admin console, part after hostname in *.ts.net)
 tailscale_tags          = ["tag:k8s-cluster"]    # Tags for the device (must be owned by OAuth client)
-tailscale_device_lookup = true                   # Auto-discover IP via Tailscale API (set false for fresh deploys)
+# tailscale_device_lookup = false                 # Auto-discover IP via Tailscale API (requires 'devices:read' OAuth scope)
 # tailscale_ip          = ""                     # Manual IP override (only needed if device_lookup=false)
 # tailscale_extra_args  = []                     # Extra args (e.g., ["TS_ACCEPT_ROUTES=true", "TS_ADVERTISE_EXIT_NODE=true"])
 
