@@ -31,15 +31,17 @@ fi
 echo "Waiting for task $TASK_ID on $SERVICE_NAME (timeout: ${TIMEOUT}s)"
 echo "================================================================"
 
-python3 << EOF
+export SERVICE_NAME TASK_ID TIMEOUT
+python3 << 'EOF'
 import ovh
+import os
 import time
 import sys
 
 client = ovh.Client()
-service_name = "${SERVICE_NAME}"
-task_id = int("${TASK_ID}")
-timeout = int("${TIMEOUT}")
+service_name = os.environ['SERVICE_NAME']
+task_id = int(os.environ['TASK_ID'])
+timeout = int(os.environ['TIMEOUT'])
 start_time = time.time()
 
 print(f"Monitoring task {task_id}...")

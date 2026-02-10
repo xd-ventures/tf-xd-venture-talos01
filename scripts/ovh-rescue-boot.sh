@@ -28,13 +28,15 @@ fi
 echo "Booting $SERVICE_NAME into rescue mode..."
 echo "=========================================="
 
-python3 << EOF
+export SERVICE_NAME
+python3 << 'EOF'
 import ovh
+import os
 import time
 import sys
 
 client = ovh.Client()
-service_name = "${SERVICE_NAME}"
+service_name = os.environ['SERVICE_NAME']
 
 try:
     # Get rescue boot ID
