@@ -1,0 +1,288 @@
+# Drift Detection - Scheduled tofu plan against live infrastructure
+#
+# Runs a read-only `tofu plan` to detect configuration drift between
+# code (main branch), state (OVH S3), and reality (live infrastructure).
+#
+# Design decisions:
+# - Cron-only (no post-merge trigger) to keep it simple for solo project
+# - Creates GitHub Issue on unexpected drift (persistent, trackable)
+# - Skips issue creation if an open drift issue already exists (no spam)
+# - Filters out expected drift (Tailscale auth key expiry) from alerting
+# - Plan output is NEVER printed raw to logs (state contains secrets)
+# - No `tofu apply` step exists in this workflow by construction
+#
+# Required GitHub Secrets:
+#   AWS_ACCESS_KEY_ID          - OVH S3 access key (for state backend)
+#   AWS_SECRET_ACCESS_KEY      - OVH S3 secret key (for state backend)
+#   OVH_APPLICATION_KEY        - OVH API application key
+#   OVH_APPLICATION_SECRET     - OVH API application secret
+#   OVH_CONSUMER_KEY           - OVH API consumer key
+#   TAILSCALE_OAUTH_CLIENT_ID  - Tailscale OAuth client ID
+#   TAILSCALE_OAUTH_CLIENT_SECRET - Tailscale OAuth client secret
+#
+# Required GitHub Secrets (continued):
+#   TF_VARS_B64                - Base64-encoded tfvars file content
+#                                (for variables without defaults: ovh_subsidiary,
+#                                talos_version, cluster_name, cluster_endpoint, etc.)
+
+name: Drift Detection
+
+on:
+  schedule:
+    # Run daily at 07:00 UTC (morning in EU, catches overnight drift)
+    # Adjust frequency based on how often you merge without applying.
+    # Weekly (e.g., "0 7 * * 1") is fine if you apply regularly.
+    - cron: '0 7 * * *'
+
+  # Allow manual trigger for on-demand drift checks
+  workflow_dispatch:
+
+# Only one drift detection run at a time
+concurrency:
+  group: drift-detection
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  plan:
+    name: Detect Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # OVH S3 backend credentials
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # OVH API credentials
+      OVH_ENDPOINT: "ovh-eu"
+      OVH_APPLICATION_KEY: ${{ secrets.OVH_APPLICATION_KEY }}
+      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
+      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
+      # Tailscale OAuth credentials
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # v1
+        with:
+          tofu_version: '1.11.x'
+          tofu_wrapper: false
+
+      - name: Create tfvars from secrets
+        run: |
+          # Decode tfvars from base64 secret, or create minimal one from individual vars.
+          # Using a file avoids leaking variable values in process arguments.
+          if [ -n "${{ secrets.TF_VARS_B64 }}" ]; then
+            echo "${{ secrets.TF_VARS_B64 }}" | base64 -d > ci.auto.tfvars
+          else
+            # Minimal tfvars - add your required variables here.
+            # These are the variables without defaults that tofu plan needs.
+            cat > ci.auto.tfvars <<'TFVARS'
+          # Populated by drift detection workflow
+          # Add required variables that have no defaults:
+          # ovh_subsidiary    = "FR"
+          # talos_version     = "v1.12.0"
+          # cluster_name      = "talos01"
+          # cluster_endpoint  = "https://<server-ip>:6443"
+          TFVARS
+            echo "::warning::TF_VARS_B64 secret not set. Using placeholder tfvars. Plan will fail until you configure this."
+          fi
+
+      - name: Initialize OpenTofu
+        run: tofu init -input=false -no-color
+
+      - name: Run plan (detect drift)
+        id: plan
+        run: |
+          set +e
+          # -detailed-exitcode: 0=no changes, 1=error, 2=changes detected
+          # -json produces machine-parseable output (no secrets in logs)
+          tofu plan -detailed-exitcode -input=false -no-color -out=plan.tfplan 2>plan_stderr.txt
+          EXIT_CODE=$?
+          set -e
+
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "::error::tofu plan failed with an error"
+            # Print stderr only (plan errors, not state contents)
+            cat plan_stderr.txt
+            exit 1
+          fi
+
+      - name: Analyze drift
+        if: steps.plan.outputs.exit_code == '2'
+        id: analyze
+        run: |
+          # Convert binary plan to JSON for analysis
+          tofu show -json plan.tfplan > plan.json
+
+          # Extract change summary using Python (more robust than jq for this)
+          python3 << 'PYEOF'
+          import json
+          import os
+
+          with open("plan.json") as f:
+              plan = json.load(f)
+
+          changes = plan.get("resource_changes", [])
+
+          # Resources with actual changes (not no-op)
+          changed = [
+              r for r in changes
+              if r.get("change", {}).get("actions", ["no-op"]) != ["no-op"]
+          ]
+
+          # Known expected drift: Tailscale auth key expires every hour
+          # This is by design (1h TTL, recreate_if_invalid = "always")
+          EXPECTED_DRIFT = {
+              "tailscale_tailnet_key.talos[0]",
+              "tailscale_tailnet_key.talos",
+          }
+
+          unexpected = []
+          expected = []
+          for r in changed:
+              addr = r.get("address", "")
+              actions = r.get("change", {}).get("actions", [])
+              action_str = "/".join(actions)
+
+              entry = f"- `{addr}` ({action_str})"
+
+              if addr in EXPECTED_DRIFT:
+                  expected.append(entry)
+              else:
+                  unexpected.append(entry)
+
+          # Output counts
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"total_changes={len(changed)}\n")
+              out.write(f"unexpected_changes={len(unexpected)}\n")
+              out.write(f"expected_changes={len(expected)}\n")
+              out.write(f"has_unexpected={'true' if unexpected else 'false'}\n")
+
+          # Build issue body
+          body_parts = []
+          body_parts.append("## Drift Detection Report\n")
+          body_parts.append(f"**Total changes:** {len(changed)}  ")
+          body_parts.append(f"**Unexpected:** {len(unexpected)}  ")
+          body_parts.append(f"**Expected (filtered):** {len(expected)}\n")
+
+          if unexpected:
+              body_parts.append("### Unexpected Changes (action required)\n")
+              body_parts.extend(unexpected)
+              body_parts.append("")
+
+          if expected:
+              body_parts.append("### Expected Changes (no action needed)\n")
+              body_parts.extend(expected)
+              body_parts.append("")
+
+          body_parts.append("### Next Steps\n")
+          body_parts.append("1. Review the changes above")
+          body_parts.append("2. Run `tofu plan` locally to see full details")
+          body_parts.append("3. Run `tofu apply` if changes are intentional")
+          body_parts.append("4. Close this issue after applying\n")
+          server_url = os.environ.get("GITHUB_SERVER_URL", "")
+          repository = os.environ.get("GITHUB_REPOSITORY", "")
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          tofu_ver = plan.get("terraform_version", "unknown")
+          body_parts.append(f"*Run: `{tofu_ver}` | "
+                           f"Workflow: `{server_url}/{repository}/actions/runs/{run_id}`*")
+
+          body = "\n".join(body_parts)
+
+          # Write body to file (avoid shell escaping issues)
+          with open("issue_body.md", "w") as f:
+              f.write(body)
+
+          # Summary for workflow log
+          print(f"Total changes: {len(changed)}")
+          print(f"Unexpected:    {len(unexpected)}")
+          print(f"Expected:      {len(expected)}")
+          if unexpected:
+              print("\nUnexpected changes:")
+              for u in unexpected:
+                  print(f"  {u}")
+          PYEOF
+
+      - name: Check for existing drift issue
+        if: steps.analyze.outputs.has_unexpected == 'true'
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Search for open issues with the drift label
+          EXISTING=$(gh issue list \
+            --label "drift" \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "number=$EXISTING" >> "$GITHUB_OUTPUT"
+            echo "Open drift issue already exists: #$EXISTING"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create drift issue
+        if: steps.analyze.outputs.has_unexpected == 'true' && steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "drift: ${{ steps.analyze.outputs.unexpected_changes }} unexpected change(s) detected" \
+            --body-file issue_body.md \
+            --label "drift"
+
+      - name: Update existing drift issue
+        if: steps.analyze.outputs.has_unexpected == 'true' && steps.existing.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Add a comment to the existing issue with fresh drift data
+          gh issue comment "${{ steps.existing.outputs.number }}" \
+            --body-file issue_body.md
+
+      - name: Job Summary
+        if: always() && steps.plan.outputs.exit_code != '1'
+        run: |
+          EXIT_CODE="${{ steps.plan.outputs.exit_code }}"
+          UNEXPECTED="${{ steps.analyze.outputs.unexpected_changes }}"
+          EXPECTED="${{ steps.analyze.outputs.expected_changes }}"
+
+          if [ "$EXIT_CODE" = "0" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## Drift Detection: No Changes
+
+          Infrastructure matches code and state. No action needed.
+          EOF
+          elif [ "${UNEXPECTED:-0}" = "0" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Drift Detection: Expected Changes Only
+
+          Found ${EXPECTED:-0} expected change(s) (e.g., Tailscale key expiry). No action needed.
+          EOF
+          else
+            cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Drift Detection: Unexpected Changes Found
+
+          Found **${UNEXPECTED} unexpected** and ${EXPECTED:-0} expected change(s).
+
+          A GitHub Issue has been created/updated. Run \`tofu plan\` locally and apply if appropriate.
+          EOF
+          fi
+
+      # Security: clean up plan files (contains state references)
+      - name: Cleanup
+        if: always()
+        run: rm -f plan.tfplan plan.json plan_stderr.txt ci.auto.tfvars issue_body.md

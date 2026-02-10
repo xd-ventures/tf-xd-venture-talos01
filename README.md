@@ -230,6 +230,29 @@ tofu apply
 
 Use `talosctl apply-config` for runtime config changes that don't require reinstall.
 
+## Operations: Apply After Merge
+
+This project separates CI (automated validation) from CD (manual apply). GitHub Actions validates code changes on pull requests, but **`tofu apply` is always manual** — this is intentional because applies to bare metal are destructive and irreversible.
+
+**Rule: Run `tofu apply` after merging any PR that changes `.tf` files.**
+
+If multiple PRs merge without an apply, state drift accumulates. The drift is harmless to the running infrastructure (nothing changes until you apply), but it makes the next `tofu plan` output confusing and harder to review.
+
+Recommended workflow after merging:
+
+```bash
+git checkout main && git pull
+tofu plan          # Review what changed
+tofu apply         # Apply when satisfied
+```
+
+If you cannot apply immediately, that is fine — but run `tofu plan` to understand the accumulated drift before the next apply.
+
+> [!NOTE]
+> A scheduled drift detection workflow runs daily and opens a GitHub Issue when
+> infrastructure diverges from code. See [ADR-0013](docs/adr/0013-drift-detection.md)
+> for details.
+
 ## Troubleshooting
 
 ### Server Not Responding
