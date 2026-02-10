@@ -77,6 +77,14 @@ variable "extra_kernel_args" {
   # - "net.ifnames=0" for classic network interface naming
 }
 
+# Cilium CNI Configuration Variables
+
+variable "cilium_cli_version" {
+  description = "Cilium CLI image version tag for the install Job. See: https://github.com/cilium/cilium-cli/releases"
+  type        = string
+  default     = "v0.19.0"
+}
+
 # Tailscale Configuration Variables
 # NOTE: Auth key is always auto-generated via tailscale_tailnet_key resource
 # This ensures fresh, single-use keys for each deployment
