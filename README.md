@@ -62,7 +62,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 
 - [OpenTofu](https://opentofu.org/) or Terraform >= 1.6.0
 - OVH account with API credentials
-- Tailscale account with API key
+- Tailscale account with OAuth client (see [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md))
 - Existing OVH dedicated server
 
 ### 1. Configure Credentials
@@ -74,8 +74,10 @@ export OVH_APPLICATION_KEY="your-app-key"
 export OVH_APPLICATION_SECRET="your-app-secret"
 export OVH_CONSUMER_KEY="your-consumer-key"
 
-# Tailscale API (get from https://login.tailscale.com/admin/settings/keys)
-export TAILSCALE_API_KEY="tskey-api-xxx"
+# Tailscale OAuth (create at https://login.tailscale.com/admin/settings/oauth)
+# Required scope: auth_keys — see ADR-0008 for setup details
+export TAILSCALE_OAUTH_CLIENT_ID="your-client-id"
+export TAILSCALE_OAUTH_CLIENT_SECRET="tskey-client-xxx"
 ```
 
 ### 2. Configure Variables
