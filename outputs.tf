@@ -41,6 +41,21 @@ output "talos_installer_image" {
   value       = "factory.talos.dev/installer/${talos_image_factory_schematic.this.id}:${var.talos_version}"
 }
 
+output "installation_image_url" {
+  description = "The image URL being used for installation"
+  value       = local.image_url
+}
+
+output "installation_image_type" {
+  description = "The image type being used (qcow2 or raw)"
+  value       = local.image_type
+}
+
+output "efi_bootloader_path" {
+  description = "The EFI bootloader path being used"
+  value       = local.efi_bootloader_path_grub
+}
+
 output "cluster_endpoint" {
   description = "Kubernetes API endpoint URL (actual endpoint used in cluster config)"
   value       = local.actual_cluster_endpoint
@@ -58,21 +73,6 @@ output "talos_machine_config" {
   sensitive   = true
 }
 
-output "talos_machine_config_raw" {
-  description = "Raw machine configuration YAML (for debugging - shows what goes to config drive)"
-  value       = data.talos_machine_configuration.controlplane.machine_configuration
-  sensitive   = true
-}
-
-output "config_drive_user_data_info" {
-  description = "Information about config drive user-data (size/length for verification). Use 'tofu output config_drive_user_data_info' to view."
-  value = {
-    length_bytes    = length(data.talos_machine_configuration.controlplane.machine_configuration)
-    first_100_chars = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, min(100, length(data.talos_machine_configuration.controlplane.machine_configuration)))
-  }
-  sensitive = true
-}
-
 output "talosconfig" {
   description = "Talos client configuration for talosctl - ready to use YAML file"
   # NOTE: Using public IP because talosctl's gRPC resolver doesn't support Tailscale MagicDNS.
@@ -87,40 +87,9 @@ output "talosconfig_save_command" {
   value       = "tofu output -raw talosconfig > talosconfig"
 }
 
-# Emergency/debug access via public IP (bypasses Tailscale)
-output "talosconfig_public_ip" {
-  description = "Talos config with public IP for emergency access (bypasses Tailscale)"
-  value       = data.talos_client_configuration.this.talos_config
-  sensitive   = true
-}
-
-output "config_drive_debug_info" {
-  description = "Debug information about config drive configuration"
-  value = {
-    user_data_length      = length(data.talos_machine_configuration.controlplane.machine_configuration)
-    user_data_starts_with = substr(data.talos_machine_configuration.controlplane.machine_configuration, 0, 20)
-    cluster_endpoint      = replace(var.cluster_endpoint, "<server-ip>", ovh_dedicated_server.talos01.ip)
-    metadata_instance_id  = var.cluster_name
-    note                  = "OVH creates OpenStack format (config-2, openstack/latest/user_data). Talos OpenStack platform supports this format."
-  }
-  sensitive = true
-}
-
 output "bootstrap_completed" {
   description = "Indicates when the Talos cluster bootstrap was completed"
   value       = talos_machine_bootstrap.this.id
-}
-
-# Debug outputs - useful for troubleshooting
-output "debug_image_factory_urls" {
-  description = "All available URLs from image factory"
-  value = {
-    disk_image = data.talos_image_factory_urls.this.urls.disk_image
-    iso        = try(data.talos_image_factory_urls.this.urls.iso, "N/A")
-    installer  = try(data.talos_image_factory_urls.this.urls.installer, "N/A")
-    kernel     = try(data.talos_image_factory_urls.this.urls.kernel, "N/A")
-    initramfs  = try(data.talos_image_factory_urls.this.urls.initramfs, "N/A")
-  }
 }
 
 # Kubernetes access
@@ -143,9 +112,10 @@ output "kubeconfig_save_command" {
   value       = "tofu output -raw kubeconfig > kubeconfig"
 }
 
-# Emergency/debug access via public IP (bypasses Tailscale)
+# WARNING: Bypasses Tailscale security model. Use only for emergency recovery
+# when Tailscale is unavailable. Requires firewall to be disabled.
 output "kubeconfig_public_ip" {
-  description = "Kubeconfig with public IP for emergency access (bypasses Tailscale)"
+  description = "Kubeconfig with public IP for emergency access. WARNING: bypasses Tailscale — use only when Tailscale is down and firewall is disabled."
   value       = talos_cluster_kubeconfig.this.kubeconfig_raw
   sensitive   = true
 }
