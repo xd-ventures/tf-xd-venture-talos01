@@ -7,7 +7,7 @@
 # 1. Set boot mode to harddisk
 # 2. Trigger a hard reboot
 
-set -e
+set -euo pipefail
 
 SERVICE_NAME="${1:-}"
 

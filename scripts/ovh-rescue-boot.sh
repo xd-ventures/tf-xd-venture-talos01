@@ -9,7 +9,7 @@
 # 3. Wait for server to come online
 # 4. Display SSH credentials
 
-set -e
+set -euo pipefail
 
 SERVICE_NAME="${1:-}"
 

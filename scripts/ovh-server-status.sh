@@ -9,7 +9,7 @@
 # - OVH_APPLICATION_SECRET
 # - OVH_CONSUMER_KEY
 
-set -e
+set -euo pipefail
 
 SERVICE_NAME="${1:-}"
 

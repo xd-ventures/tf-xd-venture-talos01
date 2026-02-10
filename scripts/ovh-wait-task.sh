@@ -5,7 +5,7 @@
 #
 # Requires OVH CLI configured or environment variables
 
-set -e
+set -euo pipefail
 
 TASK_ID="${1:-}"
 SERVICE_NAME="${2:-}"
