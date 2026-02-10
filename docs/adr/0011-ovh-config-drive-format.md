@@ -52,7 +52,7 @@ Use `platform=openstack` in the Talos image factory configuration. This tells Ta
 - None identified
 
 ### Risks
-- OVH may change BYOI config drive format in future (low probability)
+- OVH may change BYOI config drive format in the future (low probability)
 
 ## Appendix: Rescue Mode Evidence
 
