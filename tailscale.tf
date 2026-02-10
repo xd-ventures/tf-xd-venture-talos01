@@ -27,7 +27,13 @@ provider "tailscale" {
 }
 
 # Generate a pre-authentication key for Talos cluster nodes
-# This key is used to automatically register the node with Tailscale
+# This key is consumed once during bootstrap (TS_AUTH_ONCE=true) and has no value after.
+# The key expires after 1 hour, but that's fine — it's only needed during initial setup.
+#
+# DRIFT PREVENTION: The key is a transient credential that expires server-side after 1h.
+# Without lifecycle guards, every `tofu plan` after expiry would show a recreate diff.
+# We use ignore_changes + recreate_if_invalid="never" to suppress this. On reinstall,
+# replace_triggered_by on the terraform_data proxy forces a fresh key.
 resource "tailscale_tailnet_key" "talos" {
   count = local.tailscale_enabled ? 1 : 0
 
@@ -38,8 +44,30 @@ resource "tailscale_tailnet_key" "talos" {
   description   = replace(replace(var.cluster_name, "-", ""), "_", "") # Alphanumeric only
   tags          = var.tailscale_tags
 
-  # Recreate key if it becomes invalid (expired, revoked, etc.)
-  recreate_if_invalid = "always"
+  recreate_if_invalid = "never" # Key is consumed once — don't recreate on expiry
+
+  lifecycle {
+    ignore_changes = all # After creation, never diff against Tailscale API state
+  }
+}
+
+# Stable proxy for the auth key value — decouples downstream resources from the
+# tailscale_tailnet_key lifecycle. Without this, key expiry would cascade changes
+# through the machine config and firewall resources.
+#
+# On reinstall, replace_triggered_by forces a new key + new proxy in one operation.
+resource "terraform_data" "tailscale_key_stable" {
+  count = local.tailscale_enabled ? 1 : 0
+
+  input = tailscale_tailnet_key.talos[0].key
+
+  lifecycle {
+    ignore_changes = [input] # Capture once, never re-read from expired key
+
+    replace_triggered_by = [
+      terraform_data.reinstall_trigger,
+    ]
+  }
 }
 
 # Tailscale device data source for dynamic IP lookup
@@ -71,12 +99,3 @@ output "tailscale_device_ip" {
   value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].addresses[0] : null
 }
 
-output "tailscale_key_id" {
-  description = "ID of the generated Tailscale auth key"
-  value       = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].id : null
-}
-
-output "tailscale_key_expires_at" {
-  description = "Expiry time of the generated Tailscale auth key"
-  value       = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].expires_at : null
-}
