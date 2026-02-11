@@ -8,11 +8,11 @@ terraform {
     }
     talos = {
       source  = "siderolabs/talos"
-      version = "~> 0.6"
+      version = "~> 0.10.0"
     }
     tailscale = {
       source  = "tailscale/tailscale"
-      version = "~> 0.24"
+      version = "~> 0.26.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
