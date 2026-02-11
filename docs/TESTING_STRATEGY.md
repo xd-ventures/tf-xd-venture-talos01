@@ -71,7 +71,7 @@ brew install tailscale
 ./scripts/ovh-server-status.sh
 
 # Monitor reinstall task
-./scripts/ovh-monitor-task.sh <task_id>
+./scripts/ovh-wait-task.sh <task_id>
 ```
 
 ### 2. Serial Console Access
@@ -195,13 +195,14 @@ zpool status
    talosctl -n <tailscale-ip> run zpool import tank
    ```
 
-## Automated Test Script
+## Automated Test Script (Example)
+
+> **Note**: This script is a reference template — it is not included in the repository.
+> Adapt it to your environment before use.
 
 ```bash
 #!/bin/bash
-# scripts/test-deployment.sh
-
-set -e
+set -euo pipefail
 
 echo "=== Phase 1: Pre-deployment ==="
 tofu validate
@@ -245,12 +246,14 @@ cilium status
 echo "=== All tests passed ==="
 ```
 
-## CI/CD Integration
+## CI/CD Integration (Planned)
 
-For automated pipelines, use this workflow:
+> **Note**: Deployment testing in CI is not yet implemented. The workflow below is a
+> starting point for future automation. The current CI pipeline validates code quality
+> only (pre-commit hooks + Trivy scan) — see `.github/workflows/pr-validation.yml`.
 
 ```yaml
-# .github/workflows/test.yml
+# .github/workflows/test.yml (not yet implemented)
 name: Test Deployment
 
 on:
@@ -280,7 +283,8 @@ jobs:
           OVH_APPLICATION_SECRET: ${{ secrets.OVH_APP_SECRET }}
           OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
         run: |
-          ./scripts/test-deployment.sh
+          # Adapt the example test script from above
+          tofu init && tofu apply -auto-approve
 ```
 
 ## Metrics to Collect
