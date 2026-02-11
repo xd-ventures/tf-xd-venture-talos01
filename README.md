@@ -1,5 +1,9 @@
 # Talos Kubernetes Cluster on OVH Bare Metal
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![PR Validation](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.6.0-blue.svg)](https://opentofu.org/)
+
 Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster on OVH dedicated servers.
 
 ## Features
