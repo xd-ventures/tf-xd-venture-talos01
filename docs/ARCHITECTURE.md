@@ -201,7 +201,7 @@ This requires significant infrastructure changes (see [ADR-0012](adr/0012-single
 |---------|--------|----------|
 | System disk failure | Cluster down | Reinstall via Terraform (~15 min) |
 | Data disk failure | ZFS handles it | Replace disk, resilver |
-| Both disks fail | Full cluster loss | Reinstall via Terraform + restore from backup (Velero planned) |
+| Both disks fail | Full cluster loss | Reinstall via Terraform; data recovery requires external backups (Velero planned but not yet implemented) |
 | Tailscale outage | No admin access | Emergency: disable firewall via iKVM |
 | Network partition | Workloads affected | Automatic recovery on reconnect |
 
