@@ -54,7 +54,7 @@ provider "kubernetes" {
 # Helm provider configuration
 # Uses same authentication as kubernetes provider
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = local.argocd_enabled ? local.k8s_host : null
     cluster_ca_certificate = local.argocd_enabled ? local.k8s_cluster_ca_certificate : null
     client_certificate     = local.argocd_enabled ? local.k8s_client_certificate : null
@@ -73,7 +73,7 @@ provider "argocd" {
 
   # Use admin credentials from the initial secret
   username = "admin"
-  password = var.argocd_enabled ? data.kubernetes_secret.argocd_initial_admin[0].data.password : ""
+  password = var.argocd_enabled ? data.kubernetes_secret_v1.argocd_initial_admin[0].data.password : ""
 
   # Kubernetes authentication for port-forward
   kubernetes {

@@ -206,7 +206,7 @@ output "argocd_enabled" {
 
 output "argocd_admin_password" {
   description = "Initial admin password for ArgoCD (auto-generated). Delete argocd-initial-admin-secret after changing."
-  value       = var.argocd_enabled ? data.kubernetes_secret.argocd_initial_admin[0].data.password : "ArgoCD not enabled"
+  value       = var.argocd_enabled ? data.kubernetes_secret_v1.argocd_initial_admin[0].data.password : "ArgoCD not enabled"
   sensitive   = true
 }
 
