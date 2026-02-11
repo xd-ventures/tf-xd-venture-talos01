@@ -48,6 +48,14 @@
       ],
       "groupName": "kubernetes-ecosystem-providers",
       "automerge": false
+    },
+    {
+      "description": "Flag major updates for extra review",
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "major-update"],
+      "prBodyNotes": [
+        "This is a **major version update**. Review changelog for breaking changes before merging."
+      ]
     }
   ]
 }
