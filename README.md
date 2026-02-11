@@ -67,6 +67,8 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 - Tailscale account with OAuth client (see [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md))
 - Existing OVH dedicated server
 
+> **Cost & Hardware**: Talos requires a minimum of 2 CPU cores, 2 GiB RAM, and 10 GiB disk for a control plane node — modest hardware is sufficient for playground or homelab use. OVH dedicated servers start around ~100 EUR/month; check [OVH Eco servers](https://eco.ovhcloud.com/en-ie/) for budget-friendly options. [Tailscale](https://tailscale.com/pricing/) is free for personal use.
+
 ### 1. Configure Credentials
 
 ```bash
