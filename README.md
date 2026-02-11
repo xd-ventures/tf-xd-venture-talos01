@@ -157,6 +157,8 @@ zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
 ├── versions.tf             # Provider versions
 ├── backend.tf              # Remote state configuration
 ├── terraform.tfvars.example # Example configuration
+├── templates/
+│   └── cilium-install-job.yaml.tftpl  # Cilium CNI install manifest
 ├── docs/
 │   ├── ARCHITECTURE.md     # Detailed architecture
 │   ├── TESTING_STRATEGY.md # Validation procedures
