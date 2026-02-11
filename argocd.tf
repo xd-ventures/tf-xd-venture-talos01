@@ -111,7 +111,7 @@ resource "helm_release" "argocd" {
 
 # Data source to retrieve the initial admin password
 # ArgoCD generates this automatically and stores it in a secret
-data "kubernetes_secret" "argocd_initial_admin" {
+data "kubernetes_secret_v1" "argocd_initial_admin" {
   count = var.argocd_enabled ? 1 : 0
 
   metadata {
@@ -184,6 +184,6 @@ resource "argocd_application" "guestbook" {
 
   depends_on = [
     helm_release.argocd,
-    data.kubernetes_secret.argocd_initial_admin,
+    data.kubernetes_secret_v1.argocd_initial_admin,
   ]
 }
