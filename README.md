@@ -71,23 +71,46 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 
 ### 1. Configure Credentials
 
+#### OVH API
+
+Create API credentials at [api.ovh.com/createToken](https://api.ovh.com/createToken):
+
 ```bash
-# OVH API (get from https://api.ovh.com/createToken)
 export OVH_ENDPOINT="ovh-eu"
 export OVH_APPLICATION_KEY="your-app-key"
 export OVH_APPLICATION_SECRET="your-app-secret"
 export OVH_CONSUMER_KEY="your-consumer-key"
-
-# Tailscale OAuth (create at https://login.tailscale.com/admin/settings/oauth)
-# Scopes: auth_keys + devices:read — see ADR-0008 for setup details
-export TAILSCALE_OAUTH_CLIENT_ID="your-client-id"
-export TAILSCALE_OAUTH_CLIENT_SECRET="tskey-client-xxx"
 ```
 
+#### Tailscale OAuth
+
+This project uses a [Tailscale OAuth client](https://tailscale.com/kb/1215/oauth-clients) for automated device registration (see [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md) for rationale).
+
+**Setup steps:**
+
+1. **Configure ACL tags** — add [tag ownership](https://tailscale.com/kb/1068/acl-tags) to your tailnet policy file so the OAuth client can assign tags to devices:
+   ```json
+   {
+     "tagOwners": {
+       "tag:k8s-cluster": ["tag:terraform"],
+       "tag:terraform": []
+     }
+   }
+   ```
+2. **Create an OAuth client** — in the Tailscale admin console under [Settings > OAuth clients](https://login.tailscale.com/admin/settings/oauth), create a credential with scopes:
+   - `auth_keys` (required) — generate pre-auth keys for device registration
+   - `devices:read` (recommended) — auto-discover the node's Tailscale IP for firewall rules
+3. **Export credentials:**
+   ```bash
+   export TAILSCALE_OAUTH_CLIENT_ID="your-client-id"
+   export TAILSCALE_OAUTH_CLIENT_SECRET="tskey-client-xxx"
+   ```
+
 > [!NOTE]
-> The `devices:read` scope enables automatic Tailscale IP discovery, which is required
-> for reliable firewall configuration. Without it, you must manage IPs manually.
-> See [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md) for scope details.
+> Without `devices:read`, automatic Tailscale IP discovery is disabled and you must
+> manage the node's Tailscale IP manually. See [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md) for full scope details.
+
+See the [Tailscale Terraform provider docs](https://tailscale.com/kb/1210/terraform-provider) for more on provider authentication.
 
 ### 2. Configure Variables
 
