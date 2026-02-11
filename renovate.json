@@ -57,6 +57,12 @@
       "prBodyNotes": [
         "This is a **major version update**. Review changelog for breaking changes before merging."
       ]
+    },
+    {
+      "description": "Delay adoption of pre-1.0 provider updates by 3 days",
+      "matchManagers": ["terraform"],
+      "matchPackageNames": ["siderolabs/talos", "tailscale/tailscale"],
+      "minimumReleaseAge": "3 days"
     }
   ]
 }
