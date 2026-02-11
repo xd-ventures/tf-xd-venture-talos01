@@ -10,7 +10,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
                         ┌───────────────┴───────────────┐
                         │                               │
                    [Cloudflare]                    [Blocked]
-                   (Tunnel Only)                   (Firewall)
+                   (Planned)                       (Firewall)
                         │                               │
                         ▼                               ▼
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -94,7 +94,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 | Observability | Hubble | Network flow visibility |
 | Ingress | Gateway API | HTTP/HTTPS routing |
 | Admin Access | Tailscale | Zero-trust VPN |
-| Public Access | Cloudflare Tunnel | Secure exposure |
+| Public Access | Cloudflare Tunnel (planned) | Secure public exposure |
 | Firewall | Talos NetworkRuleConfig | Block public IP |
 
 ### Storage Layer
@@ -104,7 +104,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 | System Disk | NVMe (Talos-managed) | OS, etcd, ephemeral |
 | Data Storage | ZFS Mirror | Persistent volumes |
 | PV Provisioner | local-path-provisioner | Kubernetes PVs |
-| Backup | Velero | Disaster recovery |
+| Backup | Velero (planned) | Disaster recovery |
 
 ### Management Layer
 
@@ -150,7 +150,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 | Layer | Technology | Notes |
 |-------|------------|-------|
 | Network (Admin) | WireGuard (Tailscale) | End-to-end encrypted |
-| Network (Public) | TLS (Cloudflare) | TLS 1.3 |
+| Network (Public) | TLS (Cloudflare, planned) | TLS 1.3 |
 | Disk (STATE) | LUKS2 | Talos encryption |
 | Disk (Data) | ZFS encryption (optional) | At-rest encryption |
 
@@ -190,10 +190,10 @@ This requires significant infrastructure changes (see [ADR-0012](adr/0012-single
 2. Mount via machine config
 3. Configure local-path-provisioner paths
 
-### Adding Public Services
+### Adding Public Services (planned)
 1. Deploy workload with Gateway API
 2. Configure Cloudflare Tunnel route
-3. No firewall changes needed
+3. No firewall changes needed (Tailscale traffic already allowed)
 
 ## Failure Modes
 
@@ -201,7 +201,7 @@ This requires significant infrastructure changes (see [ADR-0012](adr/0012-single
 |---------|--------|----------|
 | System disk failure | Cluster down | Reinstall via Terraform (~15 min) |
 | Data disk failure | ZFS handles it | Replace disk, resilver |
-| Both disks fail | Full cluster loss | Restore from Velero backup |
+| Both disks fail | Full cluster loss | Reinstall via Terraform + restore from backup (Velero planned) |
 | Tailscale outage | No admin access | Emergency: disable firewall via iKVM |
 | Network partition | Workloads affected | Automatic recovery on reconnect |
 
