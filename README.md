@@ -13,7 +13,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 - **Zero-Trust Access**: Tailscale for secure API access (no public IP exposure)
 - **Data Redundancy**: ZFS mirror for persistent storage across NVMe drives
 - **GitOps Ready**: ArgoCD integration for application deployment
-- **Full Automation**: Single `tofu apply` for complete cluster provisioning
+- **Automated Bootstrapping**: Single `tofu apply` provisions the cluster; ZFS storage requires a one-time post-install step
 
 > **Scope**: This project deploys a single-node cluster on one dedicated server. Version upgrades trigger a full reinstall with planned downtime (~15-30 minutes). Designed for development, homelab, and small-team production workloads where maintenance windows are acceptable. See [ADR-0012](docs/adr/0012-single-node-destructive-upgrades.md) for the multi-node upgrade path.
 
@@ -157,20 +157,25 @@ export TALOSCONFIG=$PWD/talosconfig
 
 ## Post-Installation: ZFS Setup
 
-After the cluster is running, set up ZFS for data storage:
+After the cluster is running, set up ZFS for data storage. The ZFS kernel module and `ext-zpool-importer` service are already installed via the [siderolabs/zfs extension](https://github.com/siderolabs/extensions/blob/main/storage/zfs/README.md) — you only need to create the pool once.
+
+> **Note:** Talos Linux has no SSH or shell access. To run host-level commands, you need a privileged Kubernetes pod. See the [ZFS extension docs](https://github.com/siderolabs/extensions/blob/main/storage/zfs/README.md) for the full procedure. The example below uses a privileged pod to access the host namespace:
 
 ```bash
-# SSH to node via Tailscale (use talosctl for commands)
-TSIP=$(dig +short <hostname>.ts.net)
-talosctl --endpoints $TSIP --nodes $TSIP shell
+# Launch a privileged debug pod on the node
+kubectl run zfs-setup --rm -it --restart=Never \
+  --overrides='{"spec":{"hostPID":true,"hostNetwork":true,"containers":[{"name":"zfs-setup","image":"alpine","command":["nsenter","--target","1","--mount","--uts","--ipc","--net","--","sh"],"stdin":true,"tty":true,"securityContext":{"privileged":true}}]}}' \
+  --image=alpine
 
-# Create ZFS partitions (adjust device names as needed)
+# Inside the pod — create ZFS partitions (adjust device names as needed)
 sgdisk -n 1:0:0 -t 1:BF01 /dev/nvme1n1
 sgdisk -n 3:0:0 -t 3:BF01 /dev/nvme0n1
 
 # Create mirror pool
 zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
 ```
+
+Once created, the pool is automatically imported on every boot by the `ext-zpool-importer` service. See [ADR-0004](docs/adr/0004-storage-strategy.md) for the full storage strategy.
 
 ## Directory Structure
 
