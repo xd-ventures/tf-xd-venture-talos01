@@ -111,10 +111,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      # Trivy is invoked twice because trivy-action only supports one output
-      # format per invocation. Table is for the human-readable Job Summary,
-      # SARIF is for GitHub Code Scanning inline annotations.
+      # Gate: fail the build on CRITICAL misconfigs or any secret leak.
+      - name: Trivy gate (CRITICAL + secrets)
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: fs
+          scanners: misconfig,secret
+          severity: CRITICAL
+          format: table
+          exit-code: '1'
+
+      # Informational scans (non-blocking) — table for Job Summary, SARIF for
+      # GitHub Code Scanning annotations.
       - name: Trivy scan (table)
+        if: success() || failure()
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           scan-type: fs
@@ -125,6 +135,7 @@ jobs:
           exit-code: '0'
 
       - name: Trivy scan (SARIF)
+        if: success() || failure()
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           scan-type: fs
@@ -137,12 +148,14 @@ jobs:
       # continue-on-error: Code Scanning may not be enabled on the repo.
       # Remove once confirmed working (see also: continue-on-error note).
       - name: Upload SARIF
+        if: success() || failure()
         uses: github/codeql-action/upload-sarif@45cbd0c69e560cd9e7cd7f8c32362050c9b7ded2 # v4
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
 
       - name: Job Summary
+        if: success() || failure()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << 'OUTER'
           ## Trivy IaC Scan Results
@@ -158,5 +171,5 @@ jobs:
 
           </details>
 
-          > **Note:** This scan is informational. Known findings are tracked in issues.
+          > **Note:** CRITICAL severity findings and secret leaks will fail the build. HIGH/MEDIUM findings are informational.
           OUTER
