@@ -5,6 +5,7 @@
     "helpers:pinGitHubActionDigests",
     ":gitSignOff"
   ],
+  "semanticCommitType": "chore",
   "labels": ["dependencies"],
   "schedule": ["before 9am on Monday"],
   "timezone": "Europe/Warsaw",
