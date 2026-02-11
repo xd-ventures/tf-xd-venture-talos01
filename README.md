@@ -21,7 +21,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
                   ┌───────────────┴───────────────┐
                   │                               │
              [Cloudflare]                    [Blocked]
-             (Tunnel Only)                   (Firewall)
+             (Planned)                       (Firewall)
                   │                               │
                   ▼                               ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -173,7 +173,7 @@ zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
 | Access Type | Method | Ports |
 |------------|--------|-------|
 | Admin (kubectl, talosctl) | Tailscale VPN | 6443, 50000 |
-| Public Services | Cloudflare Tunnel | 443 |
+| Public Services | Cloudflare Tunnel (planned) | 443 |
 | Public Internet | Blocked by firewall | - |
 
 Enable the firewall after verifying Tailscale connectivity:
