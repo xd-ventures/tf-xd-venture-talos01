@@ -1,0 +1,2 @@
+# Python dependencies for OVH management scripts (scripts/)
+ovh>=1.1.0
