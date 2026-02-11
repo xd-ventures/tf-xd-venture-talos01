@@ -16,6 +16,15 @@
     "labels": ["dependencies", "security"],
     "schedule": ["at any time"]
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": ["variables\\.tf$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( registryUrl=(?<registryUrl>.*?))?\\n.*?default\\s*=\\s*\"(?<currentValue>.*?)\""
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "Group all GitHub Actions updates",
