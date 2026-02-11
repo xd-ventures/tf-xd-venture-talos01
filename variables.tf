@@ -7,6 +7,11 @@ variable "ovh_endpoint" {
 variable "ovh_subsidiary" {
   description = "OVH subsidiary where the server was ordered (e.g., FR, DE, ES, GB, CA, US)"
   type        = string
+
+  validation {
+    condition     = contains(["ASIA", "AU", "CA", "CZ", "DE", "ES", "EU", "FI", "FR", "GB", "IE", "IN", "IT", "LT", "MA", "NL", "PL", "PT", "QC", "SG", "SN", "TN", "US", "WE", "WS"], var.ovh_subsidiary)
+    error_message = "ovh_subsidiary must be a valid OVH subsidiary code (e.g., FR, DE, US, CA, GB)."
+  }
 }
 
 variable "monitoring_enabled" {
@@ -26,6 +31,11 @@ variable "server_state" {
 variable "talos_version" {
   description = "Talos OS version to deploy (e.g., v1.12.0)"
   type        = string
+
+  validation {
+    condition     = can(regex("^v\\d+\\.\\d+\\.\\d+$", var.talos_version))
+    error_message = "talos_version must be a semantic version prefixed with 'v' (e.g., v1.12.0)."
+  }
 }
 
 variable "cluster_name" {
@@ -36,6 +46,11 @@ variable "cluster_name" {
 variable "cluster_endpoint" {
   description = "Kubernetes API endpoint URL (e.g., https://<server-ip>:6443)"
   type        = string
+
+  validation {
+    condition     = can(regex("^https://", var.cluster_endpoint))
+    error_message = "cluster_endpoint must start with https:// (e.g., https://<server-ip>:6443)."
+  }
 }
 
 variable "talos_endpoints" {
@@ -60,6 +75,11 @@ variable "architecture" {
   description = "CPU architecture for Talos OS image"
   type        = string
   default     = "amd64"
+
+  validation {
+    condition     = contains(["amd64", "arm64"], var.architecture)
+    error_message = "architecture must be 'amd64' or 'arm64'."
+  }
 }
 
 variable "use_raw_image" {
@@ -83,6 +103,11 @@ variable "cilium_cli_version" {
   description = "Cilium CLI image version tag for the install Job. See: https://github.com/cilium/cilium-cli/releases"
   type        = string
   default     = "v0.19.0"
+
+  validation {
+    condition     = can(regex("^v\\d+\\.\\d+\\.\\d+$", var.cilium_cli_version))
+    error_message = "cilium_cli_version must be a semantic version prefixed with 'v' (e.g., v0.19.0)."
+  }
 }
 
 # Tailscale Configuration Variables
