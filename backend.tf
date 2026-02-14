@@ -26,6 +26,10 @@ terraform {
     # State file path within the bucket
     key = "talos-cluster/terraform.tfstate"
 
+    # Enable server-side encryption (SSE-S3) for state at rest.
+    # State contains cluster PKI material and kubeconfig credentials.
+    encrypt = true
+
     # S3-compatibility flags required for OVH Object Storage.
     # These are also safe to keep when using AWS S3 or other providers.
     skip_credentials_validation = true
