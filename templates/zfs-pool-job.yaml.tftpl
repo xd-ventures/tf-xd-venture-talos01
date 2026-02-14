@@ -60,14 +60,12 @@ spec:
               value: "${mount_point}"
             - name: DISK_ARGS
               value: "${disk_args}"
-            - name: PARTITION_ARGS
-              value: "${partition_args}"
           command:
             - /bin/sh
-            - -euo
-            - pipefail
             - -c
             - |
+              set -eu
+
               HOST="nsenter --mount=/proc/1/ns/mnt --"
 
               echo "=== ZFS Pool Setup ==="
@@ -82,6 +80,10 @@ spec:
 
               # Create partitions if they don't exist
               # DISK_ARGS: space-separated device:partition pairs (e.g., "/dev/nvme0n1:3 /dev/nvme1n1:1")
+              # NOTE: Partition device names are derived as $${device}p$${partnum} (e.g., /dev/nvme0n1p3).
+              # This assumes NVMe-style naming where a "p" separator is needed between device and partition.
+              # For SATA/SAS drives (e.g., /dev/sda), the convention is /dev/sda3 (no "p" separator).
+              # If you need non-NVMe support, update the partdev derivation logic below.
               MIRROR_DEVICES=""
               for entry in $DISK_ARGS; do
                 device="$${entry%%:*}"

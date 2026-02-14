@@ -166,10 +166,9 @@ locals {
   # Uses a privileged Job with nsenter to run host ZFS/sgdisk binaries
   # See templates/zfs-pool-job.yaml.tftpl for the full manifest
   zfs_pool_manifest = var.zfs_pool_enabled ? templatefile("${path.module}/templates/zfs-pool-job.yaml.tftpl", {
-    pool_name      = var.zfs_pool_name
-    mount_point    = var.zfs_pool_mount_point
-    disk_args      = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
-    partition_args = join(" ", [for d in var.zfs_pool_disks : "${d.device}p${d.partition}"])
+    pool_name   = var.zfs_pool_name
+    mount_point = var.zfs_pool_mount_point
+    disk_args   = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
   }) : ""
 
   # Cluster-level config patch: CNI, inline manifests, and scheduling

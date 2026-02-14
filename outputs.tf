@@ -279,7 +279,12 @@ output "zfs_pool_info" {
     topology    = "mirror"
     verify      = "kubectl logs -n kube-system job/zfs-pool-setup"
     } : {
-    status = "DISABLED - Set zfs_pool_enabled = true to automate ZFS pool creation"
+    status      = "DISABLED - Set zfs_pool_enabled = true to automate ZFS pool creation"
+    pool_name   = null
+    mount_point = null
+    disks       = []
+    topology    = null
+    verify      = null
   }
 }
 
