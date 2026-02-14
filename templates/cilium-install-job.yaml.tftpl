@@ -9,7 +9,7 @@ metadata:
 # RBAC, DaemonSets, ConfigMaps, and Services across multiple API groups.
 # A scoped ClusterRole would be fragile and need updating with each Cilium release.
 # Risk is mitigated by: ttlSecondsAfterFinished cleans up the Job pod,
-# and the ServiceAccount is only usable within the completed Job's context.
+# and a post-install cleanup Job deletes this CRB and ServiceAccount.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -86,3 +86,58 @@ spec:
             - hubble.ui.enabled=true
             - --set
             - gatewayAPI.enabled=true
+---
+# Post-install cleanup: delete the cluster-admin CRB and ServiceAccount
+# to eliminate the lingering privilege escalation path.
+# Waits for the cilium-install Job to complete, then removes RBAC resources.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cilium-install-cleanup
+  namespace: kube-system
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: cilium-install-cleanup
+    spec:
+      restartPolicy: OnFailure
+      tolerations:
+        - operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      serviceAccountName: cilium-install
+      hostNetwork: true
+      containers:
+        - name: cleanup
+          image: quay.io/cilium/cilium-cli-ci:${cilium_cli_version}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for cilium-install Job to complete..."
+              while true; do
+                STATUS=$(kubectl get job cilium-install -n kube-system -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null)
+                if [ "$STATUS" = "True" ]; then
+                  echo "cilium-install Job completed successfully."
+                  break
+                fi
+                FAILED=$(kubectl get job cilium-install -n kube-system -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null)
+                if [ "$FAILED" = "True" ]; then
+                  echo "cilium-install Job failed. Skipping cleanup to preserve debug access."
+                  exit 0
+                fi
+                sleep 10
+              done
+              echo "Deleting ClusterRoleBinding cilium-install..."
+              kubectl delete clusterrolebinding cilium-install --ignore-not-found
+              echo "Deleting ServiceAccount cilium-install..."
+              kubectl delete serviceaccount cilium-install -n kube-system --ignore-not-found
+              echo "Cleanup complete."

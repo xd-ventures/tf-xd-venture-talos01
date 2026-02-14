@@ -111,13 +111,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      # Gate: fail the build on CRITICAL misconfigs or any secret leak.
-      - name: Trivy gate (CRITICAL + secrets)
+      # Gate: fail on CRITICAL misconfigs
+      - name: Trivy gate (CRITICAL misconfigs)
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
         with:
           scan-type: fs
-          scanners: misconfig,secret
+          scanners: misconfig
           severity: CRITICAL
+          format: table
+          exit-code: '1'
+
+      # Gate: fail on any secret leak (CRITICAL, HIGH, or MEDIUM confidence)
+      - name: Trivy gate (secrets)
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          scan-type: fs
+          scanners: secret
+          severity: CRITICAL,HIGH,MEDIUM
           format: table
           exit-code: '1'
 
@@ -171,5 +181,5 @@ jobs:
 
           </details>
 
-          > **Note:** CRITICAL severity findings and secret leaks will fail the build. HIGH/MEDIUM findings are informational.
+          > **Note:** CRITICAL misconfigs and secret leaks (CRITICAL/HIGH/MEDIUM) will fail the build. Other findings are informational.
           OUTER
