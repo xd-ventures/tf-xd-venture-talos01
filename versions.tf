@@ -26,6 +26,10 @@ terraform {
       source  = "argoproj-labs/argocd"
       version = "~> 7.0"
     }
+    shodan = {
+      source  = "registry.terraform.io/AdconnectDevOps/shodan"
+      version = "~> 0.1"
+    }
   }
 }
 
@@ -40,6 +44,12 @@ provider "ovh" {
 
 provider "talos" {
   # No authentication required for basic usage
+}
+
+# Shodan provider configuration
+# Set api_key via TF_VAR_shodan_api_key in .env or -var flag
+provider "shodan" {
+  api_key = var.shodan_api_key
 }
 
 # Kubernetes provider configuration

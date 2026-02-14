@@ -226,3 +226,37 @@ variable "argocd_deploy_guestbook" {
   type        = bool
   default     = false
 }
+
+# Shodan Network Monitoring Variables
+
+variable "shodan_api_key" {
+  description = "Shodan API key. Set via TF_VAR_shodan_api_key env var or -var flag. Get yours at https://account.shodan.io/"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "shodan_enabled" {
+  description = "Enable Shodan network monitoring for the server's public IP."
+  type        = bool
+  default     = false
+}
+
+variable "shodan_triggers" {
+  description = "Shodan alert triggers to enable. See: https://developer.shodan.io/api"
+  type        = list(string)
+  default = [
+    "new_service",
+    "vulnerable",
+    "open_database",
+    "ssl_expired",
+    "internet_scanner",
+    "iot",
+  ]
+}
+
+variable "shodan_notifiers" {
+  description = "Shodan notifier IDs for alert delivery (e.g., [\"default\"] for email). Configure notifiers in your Shodan account."
+  type        = list(string)
+  default     = ["default"]
+}
