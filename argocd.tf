@@ -100,16 +100,19 @@ resource "helm_release" "argocd" {
 
       # Configs
       configs = {
-        params = merge(
-          {
-            # Run server in insecure mode (no TLS) when enabled
-            # Safe because access is only via Tailscale + port-forward
-            "server.insecure" = var.argocd_server_insecure
-          },
+        params = {
+          # Run server in insecure mode (no TLS) when enabled
+          # Safe because access is only via Tailscale + port-forward
+          "server.insecure" = var.argocd_server_insecure
+        }
+
+        cm = merge(
+          {},
           var.argocd_disable_admin ? {
             # Disable built-in admin account after initial setup
-            # Enable after changing password and configuring SSO/additional accounts
-            "server.disable.auth" = true
+            # Re-enable after configuring SSO or additional accounts
+            # Ref: https://argo-cd.readthedocs.io/en/latest/faq/#how-to-disable-admin-user
+            "admin.enabled" = "false"
           } : {}
         )
       }
