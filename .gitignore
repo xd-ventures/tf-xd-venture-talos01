@@ -35,6 +35,7 @@ talosconfig
 .idea/
 *.swp
 *.swo
+.claude/
 *~
 
 # OS artifacts

@@ -20,46 +20,46 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 ## Architecture Overview
 
 ```
-                              INTERNET
-                                  │
-                  ┌───────────────┴───────────────┐
-                  │                               │
-             [Cloudflare]                    [Blocked]
-             (Planned)                       (Firewall)
-                  │                               │
-                  ▼                               ▼
+                           INTERNET
+                               │
+                  ┌────────────┴───────────────┐
+                  │                            │
+             [Cloudflare]                  [Blocked]
+             (Planned)                     (Firewall)
+                  │                            │
+                  ▼                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                    OVH Dedicated Server                       │
-│  ┌────────────────────────────────────────────────────────┐  │
+│  ┌─────────────────────────────────────────────────────────┐  │
 │  │                   Talos Linux (GRUB Boot)               │  │
-│  │                                                          │  │
+│  │                                                         │  │
 │  │  ┌─────────────────┐  ┌───────────────────────────────┐ │  │
 │  │  │   Tailscale     │  │          Cilium CNI           │ │  │
 │  │  │   Extension     │  │   • eBPF dataplane            │ │  │
 │  │  │   (100.x.x.x)   │  │   • Hubble observability      │ │  │
 │  │  └─────────────────┘  │   • Gateway API               │ │  │
-│  │                        └───────────────────────────────┘ │  │
-│  │                                                          │  │
+│  │                       └───────────────────────────────┘ │  │
+│  │                                                         │  │
 │  │  ┌────────────────────────────────────────────────────┐ │  │
-│  │  │           Kubernetes Control Plane                  │ │  │
+│  │  │           Kubernetes Control Plane                 │ │  │
 │  │  │   • API Server (6443) - Tailscale access only      │ │  │
 │  │  │   • etcd - localhost only                          │ │  │
 │  │  └────────────────────────────────────────────────────┘ │  │
-│  │                                                          │  │
+│  │                                                         │  │
 │  │  ┌────────────────────────────────────────────────────┐ │  │
-│  │  │              ZFS Storage (mirror)                   │ │  │
+│  │  │              ZFS Storage (mirror)                  │ │  │
 │  │  │   NVMe 0 ◄─────────────────────► NVMe 1            │ │  │
-│  │  │              /var/mnt/data                          │ │  │
+│  │  │              /var/mnt/data                         │ │  │
 │  │  └────────────────────────────────────────────────────┘ │  │
-│  └────────────────────────────────────────────────────────┘  │
+│  └─────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
-                  │
-             [Tailscale]
-             (VPN Mesh)
-                  │
-       ┌──────────┴──────────┐
-       │                     │
- [Admin Laptop]       [Other Nodes]
+                              │
+                         [Tailscale]
+                          (VPN Mesh)
+                              │
+       ┌──────────────────────┴──────────┐
+       │                                 │
+ [Admin Laptop]                     [Other Nodes]
 ```
 
 ## Quick Start
