@@ -79,7 +79,7 @@ jobs:
           # Decode tfvars from base64 secret, or create minimal one from individual vars.
           # Using a file avoids leaking variable values in process arguments.
           if [ -n "${{ secrets.TF_VARS_B64 }}" ]; then
-            echo "${{ secrets.TF_VARS_B64 }}" | base64 -d > ci.auto.tfvars
+            printf '%s' "${{ secrets.TF_VARS_B64 }}" | base64 -d > ci.auto.tfvars
           else
             # Minimal tfvars - add your required variables here.
             # These are the variables without defaults that tofu plan needs.
@@ -111,8 +111,9 @@ jobs:
 
           if [ $EXIT_CODE -eq 1 ]; then
             echo "::error::tofu plan failed with an error"
-            # Print stderr only (plan errors, not state contents)
-            cat plan_stderr.txt
+            # Print last 30 lines of stderr only (avoid leaking secrets from full output)
+            echo "--- plan stderr (last 30 lines) ---"
+            tail -n 30 plan_stderr.txt | sed -E 's/(secret|token|key|password)[=:][^ ]*/\1=REDACTED/gi'
             exit 1
           fi
 
@@ -141,8 +142,9 @@ jobs:
 
           # Known expected drift: Tailscale auth key expires every hour
           # This is by design (1h TTL, recreate_if_invalid = "always")
-          EXPECTED_DRIFT = {
-              "tailscale_tailnet_key.talos[0]",
+          # Match on base resource identifier (before index) so count/for_each
+          # changes don't silently break the filter.
+          EXPECTED_DRIFT_BASES = {
               "tailscale_tailnet_key.talos",
           }
 
@@ -155,7 +157,8 @@ jobs:
 
               entry = f"- `{addr}` ({action_str})"
 
-              if addr in EXPECTED_DRIFT:
+              base = addr.split("[")[0]
+              if base in EXPECTED_DRIFT_BASES:
                   expected.append(entry)
               else:
                   unexpected.append(entry)
