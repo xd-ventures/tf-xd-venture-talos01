@@ -215,6 +215,12 @@ variable "argocd_server_insecure" {
   default     = true # Default true for easier local access via port-forward
 }
 
+variable "argocd_disable_admin" {
+  description = "Disable the ArgoCD built-in admin account. Set to true after changing the initial admin password and configuring SSO or additional accounts."
+  type        = bool
+  default     = false
+}
+
 variable "argocd_deploy_guestbook" {
   description = "Deploy the ArgoCD guestbook example application to demonstrate GitOps workflow"
   type        = bool

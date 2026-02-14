@@ -149,6 +149,11 @@ output "tailscale_access_info" {
   }
 }
 
+output "firewall_warning" {
+  description = "Warning displayed when firewall is disabled"
+  value       = !var.enable_firewall ? "WARNING: Firewall is DISABLED — Talos API (50000) and Kubernetes API (6443) are exposed on the public internet. Enable with: enable_firewall = true" : null
+}
+
 # Firewall outputs
 output "firewall_enabled" {
   description = "Whether the Talos firewall is enabled (blocking public IP access)"
@@ -231,6 +236,9 @@ output "argocd_access_info" {
 
     # Security notes
     security_note = "ArgoCD is only accessible via kubectl port-forward (Tailscale required). No external exposure."
+
+    # Post-deploy hardening
+    password_rotation = "1) argocd account update-password  2) kubectl delete secret argocd-initial-admin-secret -n argocd  3) Set argocd_disable_admin = true and re-apply"
 
     # Helm release info
     helm_chart_version = var.argocd_chart_version

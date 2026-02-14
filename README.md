@@ -216,6 +216,9 @@ Once created, the pool is automatically imported on every boot by the `ext-zpool
 | Public Services | Cloudflare Tunnel (planned) | 443 |
 | Public Internet | Blocked by firewall | - |
 
+> [!WARNING]
+> The firewall is **disabled by default** to allow bootstrapping. While disabled, the Talos API (port 50000) and Kubernetes API (port 6443) are exposed on the public internet. Enable the firewall as soon as Tailscale connectivity is verified.
+
 Enable the firewall after verifying Tailscale connectivity:
 
 ```bash

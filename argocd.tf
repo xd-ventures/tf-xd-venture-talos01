@@ -42,6 +42,11 @@ locals {
 
 # ArgoCD Helm Release
 # Deploys ArgoCD using the official Helm chart
+#
+# Post-deploy hardening:
+# 1. argocd account update-password  (change initial admin password)
+# 2. kubectl delete secret argocd-initial-admin-secret -n argocd
+# 3. Set argocd_disable_admin = true and re-apply
 resource "helm_release" "argocd" {
   count = var.argocd_enabled ? 1 : 0
 
@@ -95,11 +100,18 @@ resource "helm_release" "argocd" {
 
       # Configs
       configs = {
-        params = {
-          # Run server in insecure mode (no TLS) when enabled
-          # Safe because access is only via Tailscale + port-forward
-          "server.insecure" = var.argocd_server_insecure
-        }
+        params = merge(
+          {
+            # Run server in insecure mode (no TLS) when enabled
+            # Safe because access is only via Tailscale + port-forward
+            "server.insecure" = var.argocd_server_insecure
+          },
+          var.argocd_disable_admin ? {
+            # Disable built-in admin account after initial setup
+            # Enable after changing password and configuring SSO/additional accounts
+            "server.disable.auth" = true
+          } : {}
+        )
       }
     })
   ]
