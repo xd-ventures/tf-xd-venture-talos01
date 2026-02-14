@@ -259,7 +259,11 @@ output "shodan_monitoring_info" {
     triggers     = var.shodan_triggers
     dashboard    = "https://monitor.shodan.io/dashboard"
     } : {
-    status = "DISABLED - Set shodan_enabled = true and provide SHODAN_API_KEY to enable"
+    status       = "DISABLED - Set shodan_enabled = true and provide SHODAN_API_KEY to enable"
+    alert_id     = null
+    monitored_ip = null
+    triggers     = []
+    dashboard    = null
   }
 }
 

@@ -47,9 +47,9 @@ provider "talos" {
 }
 
 # Shodan provider configuration
-# API key via environment variable: SHODAN_API_KEY
+# Set api_key via TF_VAR_shodan_api_key in .env or -var flag
 provider "shodan" {
-  # api_key sourced from SHODAN_API_KEY environment variable
+  api_key = var.shodan_api_key
 }
 
 # Kubernetes provider configuration

@@ -61,7 +61,8 @@ enable_firewall = false  # Set to true ONLY after verifying Tailscale access wor
 #
 # Requirements:
 #   - Shodan account (free tier supports up to 16 IPs)
-#   - Set SHODAN_API_KEY environment variable
+#   - API key from https://account.shodan.io/
+#   - Set TF_VAR_shodan_api_key in .env (loaded via direnv)
 #
 # shodan_enabled = true
 # shodan_triggers = ["new_service", "vulnerable", "open_database", "ssl_expired", "internet_scanner", "iot"]

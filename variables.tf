@@ -229,8 +229,15 @@ variable "argocd_deploy_guestbook" {
 
 # Shodan Network Monitoring Variables
 
+variable "shodan_api_key" {
+  description = "Shodan API key. Set via TF_VAR_shodan_api_key env var or -var flag. Get yours at https://account.shodan.io/"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "shodan_enabled" {
-  description = "Enable Shodan network monitoring for the server's public IP. Requires SHODAN_API_KEY environment variable."
+  description = "Enable Shodan network monitoring for the server's public IP."
   type        = bool
   default     = false
 }
