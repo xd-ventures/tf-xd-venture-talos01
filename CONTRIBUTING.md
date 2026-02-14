@@ -17,9 +17,11 @@ Contributions are welcome! This is a solo hobby project, so PR reviews may take 
 pip install pre-commit
 pre-commit install
 
-# Initialize OpenTofu providers
-tofu init
+# Initialize OpenTofu (no backend credentials needed for development)
+tofu init -backend=false
 ```
+
+> **Note:** The `-backend=false` flag skips remote state configuration so you can validate, lint, and format without S3 credentials. Pre-commit hooks use this flag automatically. Only maintainers deploying the cluster need backend credentials — see `backend.tf` for details.
 
 ## Development Workflow
 
