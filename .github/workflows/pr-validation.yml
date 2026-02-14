@@ -45,8 +45,18 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33 # v6
 
+      - name: Cache OpenTofu providers
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: tofu-providers-${{ hashFiles('.terraform.lock.hcl') }}
+          restore-keys: |
+            tofu-providers-
+
       - name: Run pre-commit
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
 
       # Note: sticky comments won't appear on fork PRs (GitHub restricts
       # pull-requests: write for fork workflows). This is expected.
