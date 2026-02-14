@@ -18,6 +18,8 @@ repos:
     rev: v8.21.2
     hooks:
       - id: gitleaks
+        args:
+          - --config=.gitleaks.toml
 
   # OpenTofu / Terraform
   - repo: https://github.com/antonbabenko/pre-commit-terraform
