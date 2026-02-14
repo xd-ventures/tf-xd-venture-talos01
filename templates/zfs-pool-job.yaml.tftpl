@@ -50,7 +50,7 @@ spec:
       hostPID: true
       containers:
         - name: zfs-pool-setup
-          image: busybox:1.37
+          image: busybox:${busybox_image}@${busybox_digest}
           securityContext:
             privileged: true
           env:
