@@ -164,7 +164,7 @@ locals {
   })
 
   # ZFS pool setup manifest (only when enabled)
-  # Uses a privileged Job with nsenter to run host ZFS/sgdisk binaries
+  # Uses a privileged Job with nsenter to run host ZFS/sfdisk binaries
   # See templates/zfs-pool-job.yaml.tftpl for the full manifest
   zfs_pool_manifest = var.zfs_pool_enabled ? templatefile("${path.module}/templates/zfs-pool-job.yaml.tftpl", {
     pool_name      = var.zfs_pool_name

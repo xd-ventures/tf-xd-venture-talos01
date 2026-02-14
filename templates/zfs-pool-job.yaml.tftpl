@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 ---
 # NOTE: cluster-admin is required because the Job runs with hostPID to access
-# host ZFS/sgdisk binaries via nsenter. A scoped role cannot grant host access.
+# host ZFS/sfdisk binaries via nsenter. A scoped role cannot grant host access.
 # Risk is mitigated by: ttlSecondsAfterFinished cleans up the Job pod,
 # and the ServiceAccount is only usable within the completed Job's context.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -84,17 +84,29 @@ spec:
               # This assumes NVMe-style naming where a "p" separator is needed between device and partition.
               # For SATA/SAS drives (e.g., /dev/sda), the convention is /dev/sda3 (no "p" separator).
               # If you need non-NVMe support, update the partdev derivation logic below.
+              #
+              # Uses sfdisk (util-linux, available on Talos host) instead of sgdisk (gptfdisk, not available).
+              # Type code bf01 = Solaris Root (used by convention for ZFS partitions).
               MIRROR_DEVICES=""
               for entry in $DISK_ARGS; do
                 device="$${entry%%:*}"
                 partnum="$${entry##*:}"
                 partdev="$${device}p$${partnum}"
 
-                if $HOST sgdisk -i "$partnum" "$device" >/dev/null 2>&1; then
+                if $HOST test -b "$partdev"; then
                   echo "Partition $partdev already exists — skipping."
                 else
                   echo "Creating partition $partnum on $device..."
-                  $HOST sgdisk -n "$partnum:0:0" -t "$partnum:BF01" "$device"
+                  # Use sfdisk to append a partition using all remaining space.
+                  # Type GUID 6a898cc3-... = Solaris Root (ZFS convention, equivalent to sgdisk BF01).
+                  echo ", , 6a898cc3-1dd2-11b2-99a6-080020736631" | $HOST sfdisk --append "$device"
+                  $HOST partprobe "$device" 2>/dev/null || true
+                  # Verify the partition was created
+                  sleep 1
+                  if ! $HOST test -b "$partdev"; then
+                    echo "ERROR: Expected $partdev to exist after partitioning $device"
+                    exit 1
+                  fi
                 fi
                 MIRROR_DEVICES="$MIRROR_DEVICES $partdev"
               done
