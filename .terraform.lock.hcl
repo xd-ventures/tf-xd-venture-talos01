@@ -6,6 +6,8 @@ provider "registry.opentofu.org/argoproj-labs/argocd" {
   constraints = "~> 7.0"
   hashes = [
     "h1:Az4zcv99gGxSE3FAQFn2MCiBeRV388SpPXrs8LBcnNA=",
+    "h1:P7CjDZzdiUevaCnDl8++g20IaCNs8wkiXAgmGcvJK9A=",
+    "h1:SB9pyJAiuedouaJ3Y6yLQfQjuQJNHLsxUEnPHlVzB2w=",
     "h1:fZivQ+zNUqBdGgdVUYL4jENaoGZ8Bnx1qEiG3a2rKeE=",
     "zh:086749014d194fe082ab55bac2ee424246fb8366c1f86de1aeabe887b235e24e",
     "zh:13b21adaeabb2b2154121afe298cfb6172c0425294f8857559391c464b6a1f84",
@@ -75,6 +77,8 @@ provider "registry.opentofu.org/ovh/ovh" {
   constraints = "~> 2.0"
   hashes = [
     "h1:XlPqU8iVvTM+TR0cgkTh93PBDeWayoBo709kewzP9II=",
+    "h1:YKmuKh6XpY3AKm9gekOXnccxWMPJdLQPqIPgSaPY/Tw=",
+    "h1:da5S658cWHgMVYBWOT77FezqPBtPLuezARq0SdMoIOo=",
     "h1:n72jkLuNqAztr+lSggZe7k1kUqunVOmym10Uk1qVSt0=",
     "zh:1991e3d0c663e1b6a5a886f0a97cf71e9275f39e60e73e5d83bd83d945c9feee",
     "zh:1d2ed8d9ed0205677151179a8d385a9e5df656fa70b29efdc5b776eb5d6b6c9c",
@@ -99,6 +103,8 @@ provider "registry.opentofu.org/siderolabs/talos" {
   hashes = [
     "h1:1/HTp6cDJWQJzRj8preKQvw3x/qffivOJhZx27OmAig=",
     "h1:fc7ekyeFDNNvScqgHgowGjM9jnKFyUOMGfnEKJwuf1c=",
+    "h1:gWMvxlc8zIyeA0snj+6rarGUuBGtpb5D/mRttkbQ2hQ=",
+    "h1:kNrX3umPDAktIxQWUtx5lN6TGcDTqZxR79mTRqzU7Hg=",
     "zh:0fa82a384b25a58b65523e0ea4768fa1212b1f5cfc0c9379d31162454fedcc9d",
     "zh:349463cdd4cdb36e03276fdb855e687242237c7cf0bd5871aea995a83838c52e",
     "zh:3885026ef7c1c7012d312fc37a35af70821650b10cef03b8ffd08d22145c117d",
@@ -122,6 +128,8 @@ provider "registry.opentofu.org/tailscale/tailscale" {
   constraints = "~> 0.26.0"
   hashes = [
     "h1:57dhA1q1fqZwxDxby09+pm6WTJDWzofsL1L0C/yEWBc=",
+    "h1:NwJl0x/+qTfi/Czc/Wk7YhpCobqDtAv7Ttyh5ah/o/Q=",
+    "h1:U2MGlh7vclPTxvP2Yr1Wbe4EoV3wGeXqWc3lErkot7w=",
     "h1:e4PSH3jOhqRqIx6RJ4/ifl0kdKS3kMzi36x7EuOHDr4=",
     "zh:14172653272a2760ba9f4a8a49633c9bf415ffc3a26b34c07c86cb20ed030510",
     "zh:3713a43987205be7690b8c2371d505b136f7d99aaed88a22286ee998ec0d9ef7",
@@ -144,7 +152,10 @@ provider "registry.terraform.io/adconnectdevops/shodan" {
   version     = "0.1.15"
   constraints = "~> 0.1"
   hashes = [
+    "h1:9Nq+sfGdi9zbaWf4bJEHbzQKzjeMCFp87jmY3OMgEyA=",
+    "h1:ABDfzPTNX9dJIhtyaLGYY4vqEpBJWfgoHaTUl5P45AA=",
     "h1:baIyOrCKwnv4N1ES1cL7qkyvYxlKR1xYf9BjQCrbeEs=",
+    "h1:fuxNGupLCZntFEZCzNbZ1q6SQsuyhKDN2Xl1pNctlLs=",
     "zh:409ca06fdb062860378bc124a3b25da6939db3b1aff2bc633d1ba6e448dfc896",
     "zh:9e364bcf532b8d29b8db1ab8c6a5e6f50cc57c9e20e112def202c26295e56331",
     "zh:b7ab4791ce13d168654103490dad20850a51cc7be6ee549ee079dbfb708ce791",
