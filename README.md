@@ -135,7 +135,11 @@ tailscale_tailnet  = "tail12345"             # Your tailnet name
 ### 3. Deploy
 
 ```bash
-tofu init
+# Configure backend (see "Remote State" section below)
+cp backend.tfvars.example backend.tfvars
+# Edit backend.tfvars with your bucket, region, and endpoint
+
+tofu init -backend-config=backend.tfvars
 tofu plan
 tofu apply
 ```
@@ -224,20 +228,37 @@ tofu output firewall_verification_commands
 tofu apply
 ```
 
-## Remote State (Optional)
+## Remote State
 
-To use OVH Object Storage for remote state:
+The S3 backend is active by default. Environment-specific values (bucket, region, endpoint) are supplied via a `-backend-config` file so nothing sensitive is committed to the repository.
 
-1. Create an Object Storage container in OVH
-2. Generate S3 credentials
-3. Configure backend:
+Any S3-compatible object storage works (OVH, AWS, MinIO, etc.). This project uses OVH Object Storage to keep all infrastructure within a single provider.
+
+### Setup
 
 ```bash
+# 1. Copy and fill in backend config
 cp backend.tfvars.example backend.tfvars
-# Edit backend.tfvars with your credentials
+# Edit: set bucket name, region, and endpoint for your provider
 
-# Uncomment backend block in backend.tf
+# 2. Set credentials via environment variables
+export AWS_ACCESS_KEY_ID="<your-access-key>"
+export AWS_SECRET_ACCESS_KEY="<your-secret-key>"
+
+# 3. Initialize with backend
 tofu init -backend-config=backend.tfvars
+```
+
+See [ADR-0006](docs/adr/0006-remote-state-backend.md) for the decision rationale and [ADR-0010](docs/adr/0010-terraform-state-migration-to-ovh-object-storage.md) for the full migration guide.
+
+### Contributors
+
+Contributors don't need backend credentials. Use `-backend=false` to skip remote state:
+
+```bash
+tofu init -backend=false    # works without any credentials
+tofu validate               # validate HCL syntax
+tofu fmt -check             # check formatting
 ```
 
 ## Upgrades

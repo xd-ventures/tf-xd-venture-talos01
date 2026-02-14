@@ -1,29 +1,35 @@
-# OVH Object Storage Backend Configuration (DEPRECATED)
+# Backend Configuration for S3-Compatible Object Storage
 #
-# RECOMMENDATION: Use environment variables instead of this file.
-# See ADR-0010 for the recommended approach.
+# Copy this file and fill in your values:
+#   cp backend.tfvars.example backend.tfvars
 #
-# Environment variables (preferred):
-#   export AWS_ACCESS_KEY_ID="<ovh-s3-access-key>"
-#   export AWS_SECRET_ACCESS_KEY="<ovh-s3-secret-key>"
+# Then initialize:
+#   tofu init -backend-config=backend.tfvars
 #
-# With environment variables, you can simply run:
-#   tofu init -migrate-state
-#
-# If you must use this file:
-# 1. Copy to backend.tfvars (NEVER commit - it's in .gitignore)
-# 2. Fill in credentials below
-# 3. Run: tofu init -backend-config=backend.tfvars -migrate-state
-#
-# NOTE: This file is kept for backwards compatibility but environment
-# variables are the recommended approach for credential management.
+# backend.tfvars is gitignored and will never be committed.
+# See ADR-0006 and ADR-0010 for details.
 
-# These values match the defaults in backend.tf, only override if needed
-# endpoint = "https://s3.gra.io.cloud.ovh.net"
-# bucket   = "xd-venture-terraform-state"
-# region   = "gra"
+# Bucket name (create in your provider's control panel first)
+bucket = ""
 
-# S3 credentials from OVH (DO NOT COMMIT these values!)
-# Prefer environment variables over this file.
-access_key = ""
-secret_key = ""
+# Region
+region = "gra"
+
+# S3-compatible endpoint
+# OVH Object Storage regions:
+#   GRA (Gravelines, France):   https://s3.gra.io.cloud.ovh.net
+#   SBG (Strasbourg, France):   https://s3.sbg.io.cloud.ovh.net
+#   DE  (Frankfurt, Germany):   https://s3.de.io.cloud.ovh.net
+#   UK  (London, UK):           https://s3.uk.io.cloud.ovh.net
+#   BHS (Beauharnois, Canada):  https://s3.bhs.io.cloud.ovh.net
+#   WAW (Warsaw, Poland):       https://s3.waw.io.cloud.ovh.net
+#
+# For AWS S3, omit this block entirely (uses default endpoint).
+# For MinIO: http://minio.example.com:9000
+endpoints = {
+  s3 = "https://s3.gra.io.cloud.ovh.net"
+}
+
+# Credentials: set via environment variables (NEVER put secrets here)
+#   export AWS_ACCESS_KEY_ID="<your-access-key>"
+#   export AWS_SECRET_ACCESS_KEY="<your-secret-key>"
