@@ -68,19 +68,16 @@ enable_firewall = false  # Set to true ONLY after verifying Tailscale access wor
 # shodan_triggers = ["new_service", "vulnerable", "open_database", "ssl_expired", "internet_scanner", "iot"]
 # shodan_notifiers = ["default"]  # "default" = email configured in Shodan account
 
+# ZFS Pool Configuration (optional - automates ZFS mirror pool creation)
 # ==========================================================================
-# STORAGE NOTES
-# ==========================================================================
-# This configuration includes the ZFS extension for data storage.
-# Post-installation ZFS setup (run via talosctl or rescue mode):
+# Creates a ZFS mirror pool via an inline manifest Job during bootstrap.
+# The Job is idempotent — safe to re-apply on existing pools.
+# See ADR-0004 for storage strategy documentation.
 #
-# 1. Create ZFS partitions on second disk:
-#    sgdisk -n 1:0:0 -t 1:BF01 /dev/nvme1n1
-#
-# 2. Add second partition to first disk:
-#    sgdisk -n 3:0:0 -t 3:BF01 /dev/nvme0n1
-#
-# 3. Create ZFS mirror pool:
-#    zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
-#
-# See ADR-0004 for detailed storage strategy documentation.
+# zfs_pool_enabled    = true
+# zfs_pool_name       = "tank"
+# zfs_pool_mount_point = "/var/mnt/data"
+# zfs_pool_disks = [
+#   { device = "/dev/nvme0n1", partition = 3 },  # Third partition on OS disk
+#   { device = "/dev/nvme1n1", partition = 1 },  # First partition on data disk
+# ]

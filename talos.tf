@@ -155,29 +155,6 @@ locals {
     }
   })
 
-  # Cilium CNI configuration
-  # Replaces Flannel with Cilium for eBPF-based networking, Hubble observability, and Gateway API
-  # See ADR-0003 for decision rationale
-  cilium_config_patch = yamlencode({
-    cluster = {
-      # Disable default Flannel CNI
-      network = {
-        cni = {
-          name = "none"
-        }
-      }
-      # Install Cilium via inline manifest
-      inlineManifests = [
-        {
-          name     = "cilium-install"
-          contents = local.cilium_install_manifest
-        }
-      ]
-      # Skip waiting for CNI during bootstrap (Cilium installs after API server)
-      allowSchedulingOnControlPlanes = true
-    }
-  })
-
   # Cilium installation manifest
   # Uses Cilium CLI job to install Cilium with native routing mode
   # See templates/cilium-install-job.yaml.tftpl for the full manifest
@@ -185,12 +162,42 @@ locals {
     cilium_cli_version = var.cilium_cli_version
   })
 
+  # ZFS pool setup manifest (only when enabled)
+  # Uses a privileged Job with nsenter to run host ZFS/sgdisk binaries
+  # See templates/zfs-pool-job.yaml.tftpl for the full manifest
+  zfs_pool_manifest = var.zfs_pool_enabled ? templatefile("${path.module}/templates/zfs-pool-job.yaml.tftpl", {
+    pool_name   = var.zfs_pool_name
+    mount_point = var.zfs_pool_mount_point
+    disk_args   = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
+  }) : ""
+
+  # Cluster-level config patch: CNI, inline manifests, and scheduling
+  # NOTE: Talos uses JSON merge patch (RFC 7396) — arrays are replaced, not appended.
+  # All inline manifests MUST be in a single config patch to avoid overwrites.
+  cluster_config_patch = yamlencode({
+    cluster = {
+      # Disable default Flannel CNI (Cilium replaces it)
+      network = {
+        cni = {
+          name = "none"
+        }
+      }
+      # Inline manifests: Cilium CNI install + optional ZFS pool setup
+      inlineManifests = concat(
+        [{ name = "cilium-install", contents = local.cilium_install_manifest }],
+        var.zfs_pool_enabled ? [{ name = "zfs-pool-setup", contents = local.zfs_pool_manifest }] : []
+      )
+      # Skip waiting for CNI during bootstrap (Cilium installs after API server)
+      allowSchedulingOnControlPlanes = true
+    }
+  })
+
   # Combined config patches for machine configuration
   config_patches = compact([
     local.tailscale_config_patch,
     local.certsans_config_patch,
     local.zfs_config_patch,
-    local.cilium_config_patch,
+    local.cluster_config_patch,
   ])
 
 }

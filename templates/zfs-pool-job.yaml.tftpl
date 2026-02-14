@@ -1,0 +1,110 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zfs-pool-setup
+  namespace: kube-system
+---
+# NOTE: cluster-admin is required because the Job runs with hostPID to access
+# host ZFS/sgdisk binaries via nsenter. A scoped role cannot grant host access.
+# Risk is mitigated by: ttlSecondsAfterFinished cleans up the Job pod,
+# and the ServiceAccount is only usable within the completed Job's context.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: zfs-pool-setup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: zfs-pool-setup
+    namespace: kube-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zfs-pool-setup
+  namespace: kube-system
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: zfs-pool-setup
+    spec:
+      restartPolicy: OnFailure
+      tolerations:
+        - operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      serviceAccountName: zfs-pool-setup
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: zfs-pool-setup
+          image: busybox:1.37
+          securityContext:
+            privileged: true
+          env:
+            - name: POOL_NAME
+              value: "${pool_name}"
+            - name: MOUNT_POINT
+              value: "${mount_point}"
+            - name: DISK_ARGS
+              value: "${disk_args}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+
+              HOST="nsenter --mount=/proc/1/ns/mnt --"
+
+              echo "=== ZFS Pool Setup ==="
+              echo "Pool: $POOL_NAME | Mount: $MOUNT_POINT"
+
+              # Check if pool already exists
+              if $HOST zpool list "$POOL_NAME" >/dev/null 2>&1; then
+                echo "Pool '$POOL_NAME' already exists — skipping creation."
+                $HOST zpool status "$POOL_NAME"
+                exit 0
+              fi
+
+              # Create partitions if they don't exist
+              # DISK_ARGS: space-separated device:partition pairs (e.g., "/dev/nvme0n1:3 /dev/nvme1n1:1")
+              # NOTE: Partition device names are derived as $${device}p$${partnum} (e.g., /dev/nvme0n1p3).
+              # This assumes NVMe-style naming where a "p" separator is needed between device and partition.
+              # For SATA/SAS drives (e.g., /dev/sda), the convention is /dev/sda3 (no "p" separator).
+              # If you need non-NVMe support, update the partdev derivation logic below.
+              MIRROR_DEVICES=""
+              for entry in $DISK_ARGS; do
+                device="$${entry%%:*}"
+                partnum="$${entry##*:}"
+                partdev="$${device}p$${partnum}"
+
+                if $HOST sgdisk -i "$partnum" "$device" >/dev/null 2>&1; then
+                  echo "Partition $partdev already exists — skipping."
+                else
+                  echo "Creating partition $partnum on $device..."
+                  $HOST sgdisk -n "$partnum:0:0" -t "$partnum:BF01" "$device"
+                fi
+                MIRROR_DEVICES="$MIRROR_DEVICES $partdev"
+              done
+
+              # Wait briefly for partition devices to appear
+              sleep 2
+
+              # Create ZFS mirror pool
+              echo "Creating ZFS pool '$POOL_NAME' with mirror:$MIRROR_DEVICES"
+              $HOST zpool create -m "$MOUNT_POINT" -o ashift=12 "$POOL_NAME" mirror $MIRROR_DEVICES
+
+              echo "=== ZFS Pool Created ==="
+              $HOST zpool status "$POOL_NAME"
