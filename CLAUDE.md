@@ -121,6 +121,37 @@ Before creating a PR:
 - Consider secrets management
 - Document security assumptions
 
+### Naming Conventions
+
+All identifiers use `snake_case`. The existing codebase follows these patterns — apply them to new resources.
+
+#### Resource & Data Source Names
+
+| Pattern | When | Examples |
+|---------|------|---------|
+| `this` | Singleton resources (only one instance ever) | `talos_machine_secrets.this`, `talos_machine_bootstrap.this` |
+| Descriptive | Resource has a distinguishing role/purpose | `ovh_dedicated_server.talos01`, `talos_machine_configuration.controlplane`, `shodan_alert.server` |
+
+#### Variables
+
+- Prefix with feature/component: `tailscale_*`, `argocd_*`, `zfs_pool_*`, `shodan_*`
+- Boolean flags: `{thing}_enabled` (e.g., `argocd_enabled`, `enable_firewall`)
+- Network: `{network}_cidr`, `{network}_ip`
+
+#### Locals
+
+- Group by function with comments: endpoints, config patches (`*_config_patch`), manifests (`*_manifest`), boolean flags
+- Derived locals may mirror a variable for readability (e.g., `argocd_enabled = var.argocd_enabled`)
+
+#### Outputs
+
+- Group by component with comment headers
+- Informational: `{component}_info` or `{component}_access_info`
+- Status/flags: `{component}_enabled`, `{component}_status`
+- Commands: `*_command`, `*_save_command`
+- Tool configs: match tool names exactly (`talosconfig`, `kubeconfig` — not `talos_config`)
+- Conditional outputs: both branches must have matching object keys (use `null` for disabled state)
+
 ## Key Files
 
 ```
