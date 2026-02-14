@@ -260,3 +260,37 @@ variable "shodan_notifiers" {
   type        = list(string)
   default     = ["default"]
 }
+
+# ZFS Pool Configuration Variables
+
+variable "zfs_pool_enabled" {
+  description = "Enable automated ZFS pool creation via inline manifest Job. When false (default), no ZFS pool resources are created."
+  type        = bool
+  default     = false
+}
+
+variable "zfs_pool_name" {
+  description = "Name of the ZFS pool to create"
+  type        = string
+  default     = "tank"
+}
+
+variable "zfs_pool_mount_point" {
+  description = "Mount point for the ZFS pool"
+  type        = string
+  default     = "/var/mnt/data"
+}
+
+variable "zfs_pool_disks" {
+  description = "List of disks and partition numbers for the ZFS mirror pool. Each entry specifies a device and the partition number to create."
+  type = list(object({
+    device    = string # e.g., "/dev/nvme0n1"
+    partition = number # partition number to create
+  }))
+  default = []
+
+  validation {
+    condition     = !var.zfs_pool_enabled || length(var.zfs_pool_disks) >= 2
+    error_message = "At least 2 disks are required for a ZFS mirror pool when zfs_pool_enabled is true."
+  }
+}

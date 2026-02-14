@@ -267,6 +267,22 @@ output "shodan_monitoring_info" {
   }
 }
 
+# ZFS Pool Outputs
+
+output "zfs_pool_info" {
+  description = "ZFS pool configuration status and details"
+  value = var.zfs_pool_enabled ? {
+    status      = "ENABLED - ZFS pool will be created via inline manifest Job"
+    pool_name   = var.zfs_pool_name
+    mount_point = var.zfs_pool_mount_point
+    disks       = [for d in var.zfs_pool_disks : "${d.device}p${d.partition}"]
+    topology    = "mirror"
+    verify      = "kubectl logs -n kube-system job/zfs-pool-setup"
+    } : {
+    status = "DISABLED - Set zfs_pool_enabled = true to automate ZFS pool creation"
+  }
+}
+
 output "argocd_guestbook_status" {
   description = "Status of the ArgoCD guestbook example application"
   value = var.argocd_enabled && var.argocd_deploy_guestbook ? {
