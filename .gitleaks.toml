@@ -1,0 +1,8 @@
+# Gitleaks configuration — reduce false positives on known-safe patterns.
+# See: https://github.com/gitleaks/gitleaks#configuration
+
+[allowlist]
+  description = "Project-wide allowlist"
+  paths = [
+    '''.env\.example$''',
+  ]

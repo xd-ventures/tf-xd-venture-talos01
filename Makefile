@@ -17,7 +17,7 @@ apply: ## Apply infrastructure changes
 	tofu apply
 
 fmt: ## Format all OpenTofu files
-	tofu fmt
+	tofu fmt -recursive
 
 lint: ## Run all pre-commit hooks
 	pre-commit run --all-files
@@ -28,10 +28,12 @@ setup: ## First-time setup: install pre-commit hooks
 
 kubeconfig: ## Export kubeconfig from cluster
 	tofu output -raw kubeconfig > kubeconfig
+	chmod 600 kubeconfig
 	@echo "Run: export KUBECONFIG=$$PWD/kubeconfig"
 
 talosconfig: ## Export talosconfig from cluster
 	tofu output -raw talosconfig > talosconfig
+	chmod 600 talosconfig
 	@echo "Run: export TALOSCONFIG=$$PWD/talosconfig"
 
 status: ## Check OVH server status
