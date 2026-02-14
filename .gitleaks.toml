@@ -4,5 +4,5 @@
 [allowlist]
   description = "Project-wide allowlist"
   paths = [
-    '''.env\.example$''',
+    '''\.env\.example$''',
   ]

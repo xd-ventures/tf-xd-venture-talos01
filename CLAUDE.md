@@ -99,6 +99,30 @@ gh issue create --title "feat: add dashboard" --body "Description..."
 git checkout -b feature/42-add-dashboard
 ```
 
+## PR Review Comment Policy
+
+Every comment on a PR (from bots, reviewers, or maintainers) **must** receive a reply describing the action taken. No comment should go unanswered.
+
+### Required Actions
+
+For each comment, choose exactly one response:
+
+1. **Fix immediately** — The concern is valid and within scope. Push a fix commit to the PR branch and reply with a reference to the commit that addresses it.
+2. **Explain why it's invalid** — The concern is based on a misunderstanding or incorrect assumption. Reply with a clear explanation of why no change is needed.
+3. **Acknowledge and defer** — The concern is valid but out of scope for this PR. Reply explaining this, create a new GitHub issue immediately, and reference the issue number in the reply.
+
+### Rules
+
+- Act on the chosen response **immediately** — do not leave comments pending
+- When deferring, the new issue must be created before replying to the comment
+- When fixing, the fix commit must be pushed before replying to the comment
+- Use `gh api` to reply to PR review comments programmatically:
+  ```bash
+  # Reply to a review comment
+  gh api repos/{owner}/{repo}/pulls/{pr}/comments/{comment_id}/replies \
+    -f body="Fixed in <commit>. <explanation>"
+  ```
+
 ## Code Quality Checklist
 
 Before creating a PR:
