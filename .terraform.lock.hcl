@@ -95,7 +95,7 @@ provider "registry.opentofu.org/ovh/ovh" {
 
 provider "registry.opentofu.org/siderolabs/talos" {
   version     = "0.10.1"
-  constraints = "~> 0.6"
+  constraints = "~> 0.10.0"
   hashes = [
     "h1:1/HTp6cDJWQJzRj8preKQvw3x/qffivOJhZx27OmAig=",
     "h1:fc7ekyeFDNNvScqgHgowGjM9jnKFyUOMGfnEKJwuf1c=",
@@ -119,7 +119,7 @@ provider "registry.opentofu.org/siderolabs/talos" {
 
 provider "registry.opentofu.org/tailscale/tailscale" {
   version     = "0.26.0"
-  constraints = "~> 0.24"
+  constraints = "~> 0.26.0"
   hashes = [
     "h1:57dhA1q1fqZwxDxby09+pm6WTJDWzofsL1L0C/yEWBc=",
     "h1:e4PSH3jOhqRqIx6RJ4/ifl0kdKS3kMzi36x7EuOHDr4=",
@@ -137,5 +137,17 @@ provider "registry.opentofu.org/tailscale/tailscale" {
     "zh:cac6fe240ce5edd1e8da5488bcd1193cc8a12c9e5b4aaf5426bb9977a17468fa",
     "zh:e088304f19f9544fec4205ac2abec620dd17a15875b7199ef88e8c64047f5620",
     "zh:fdba7e605d52c847c4dac6a86bc0d0ec52c37358d36a3a9c195d6cd2430d30b8",
+  ]
+}
+
+provider "registry.terraform.io/adconnectdevops/shodan" {
+  version     = "0.1.15"
+  constraints = "~> 0.1"
+  hashes = [
+    "h1:baIyOrCKwnv4N1ES1cL7qkyvYxlKR1xYf9BjQCrbeEs=",
+    "zh:409ca06fdb062860378bc124a3b25da6939db3b1aff2bc633d1ba6e448dfc896",
+    "zh:9e364bcf532b8d29b8db1ab8c6a5e6f50cc57c9e20e112def202c26295e56331",
+    "zh:b7ab4791ce13d168654103490dad20850a51cc7be6ee549ee079dbfb708ce791",
+    "zh:e45eb0268647cfc8b043f5210e40462e9d0a968851045b4ea1b958aad6db85aa",
   ]
 }

@@ -54,6 +54,19 @@ enable_firewall = false  # Set to true ONLY after verifying Tailscale access wor
 # tailscale_ipv4_cidr = "100.64.0.0/10"       # Tailscale IPv4 range
 # tailscale_ipv6_cidr = "fd7a:115c:a1e0::/48" # Tailscale IPv6 range
 
+# Shodan Network Monitoring (optional - alerts on accidental public exposure)
+# ==========================================================================
+# Monitors the server's public IP via Shodan and alerts when services are
+# exposed. Useful for verifying firewall effectiveness.
+#
+# Requirements:
+#   - Shodan account (free tier supports up to 16 IPs)
+#   - Set SHODAN_API_KEY environment variable
+#
+# shodan_enabled = true
+# shodan_triggers = ["new_service", "vulnerable", "open_database", "ssl_expired", "internet_scanner", "iot"]
+# shodan_notifiers = ["default"]  # "default" = email configured in Shodan account
+
 # ==========================================================================
 # STORAGE NOTES
 # ==========================================================================

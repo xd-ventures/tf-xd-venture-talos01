@@ -248,6 +248,21 @@ output "argocd_access_info" {
   }
 }
 
+# Shodan Monitoring Outputs
+
+output "shodan_monitoring_info" {
+  description = "Shodan network monitoring status and details"
+  value = var.shodan_enabled ? {
+    status       = "ENABLED - Monitoring server public IP for accidental exposure"
+    alert_id     = shodan_alert.server[0].id
+    monitored_ip = "${ovh_dedicated_server.talos01.ip}/32"
+    triggers     = var.shodan_triggers
+    dashboard    = "https://monitor.shodan.io/dashboard"
+    } : {
+    status = "DISABLED - Set shodan_enabled = true and provide SHODAN_API_KEY to enable"
+  }
+}
+
 output "argocd_guestbook_status" {
   description = "Status of the ArgoCD guestbook example application"
   value = var.argocd_enabled && var.argocd_deploy_guestbook ? {
