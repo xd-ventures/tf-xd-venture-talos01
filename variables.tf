@@ -102,11 +102,39 @@ variable "extra_kernel_args" {
 variable "cilium_cli_version" {
   description = "Cilium CLI image version tag for the install Job. See: https://github.com/cilium/cilium-cli/releases"
   type        = string
-  default     = "v0.19.0"
+  default     = "v0.18.2"
 
   validation {
     condition     = can(regex("^v\\d+\\.\\d+\\.\\d+$", var.cilium_cli_version))
-    error_message = "cilium_cli_version must be a semantic version prefixed with 'v' (e.g., v0.19.0)."
+    error_message = "cilium_cli_version must be a semantic version prefixed with 'v' (e.g., v0.18.2)."
+  }
+}
+
+variable "cilium_cli_digest" {
+  description = "SHA256 digest for the Cilium CLI image. Use 'crane digest quay.io/cilium/cilium-cli-ci:<tag>' to obtain."
+  type        = string
+  default     = "sha256:503324c1fc7027e0daeb251ca2d4ad6b42d73c6be7a89cb8057cce8e59e50393"
+
+  validation {
+    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.cilium_cli_digest))
+    error_message = "cilium_cli_digest must be a sha256 digest (e.g., sha256:abc123...)."
+  }
+}
+
+variable "busybox_image" {
+  description = "Busybox image tag for the ZFS pool setup Job."
+  type        = string
+  default     = "1.37"
+}
+
+variable "busybox_digest" {
+  description = "SHA256 digest for the Busybox image. Use 'crane digest busybox:<tag>' to obtain."
+  type        = string
+  default     = "sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f"
+
+  validation {
+    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.busybox_digest))
+    error_message = "busybox_digest must be a sha256 digest (e.g., sha256:abc123...)."
   }
 }
 

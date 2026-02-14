@@ -50,7 +50,7 @@ spec:
       hostNetwork: true
       containers:
         - name: cilium-install
-          image: quay.io/cilium/cilium-cli-ci:${cilium_cli_version}
+          image: quay.io/cilium/cilium-cli-ci:${cilium_cli_version}@${cilium_cli_digest}
           env:
             - name: KUBERNETES_SERVICE_HOST
               valueFrom:
@@ -117,7 +117,7 @@ spec:
       hostNetwork: true
       containers:
         - name: cleanup
-          image: quay.io/cilium/cilium-cli-ci:${cilium_cli_version}
+          image: quay.io/cilium/cilium-cli-ci:${cilium_cli_version}@${cilium_cli_digest}
           command:
             - /bin/sh
             - -c
