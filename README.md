@@ -159,24 +159,118 @@ tofu output -raw talosconfig > talosconfig
 export TALOSCONFIG=$PWD/talosconfig
 ```
 
+## Deployment Demo
+
+<details>
+<summary><strong>Sample terminal output</strong> — what a successful deployment looks like</summary>
+
+```console
+$ tofu apply
+  # ...plan output omitted...
+
+  Plan: 13 to add, 0 to change, 0 to destroy.
+
+  Changes to Outputs:
+  + cluster_endpoint       = "https://talos-cluster.example-tailnet.ts.net:6443"
+  + server_ip              = (known after apply)
+  + tailscale_hostname     = "talos-cluster.example-tailnet.ts.net"
+  + zfs_pool_info          = { status = "ENABLED", pool_name = "tank", topology = "mirror" }
+
+  Do you want to perform these actions?
+    OpenTofu will perform the actions described above.
+    Only 'yes' will be accepted to approve.
+
+    Enter a value: yes
+
+  ovh_dedicated_server.talos01: Refreshing...
+  talos_machine_secrets.this: Creating...
+  talos_image_factory_schematic.this: Creating...
+  tailscale_tailnet_key.talos[0]: Creating...
+  talos_image_factory_schematic.this: Creation complete after 2s [id=ce4c98...]
+  tailscale_tailnet_key.talos[0]: Creation complete after 1s
+  ovh_dedicated_server_reinstall_task.talos: Creating...
+  ovh_dedicated_server_reinstall_task.talos: Still creating... [5m0s elapsed]
+  ovh_dedicated_server_reinstall_task.talos: Still creating... [10m0s elapsed]
+  ovh_dedicated_server_reinstall_task.talos: Creation complete after 12m34s
+  talos_machine_bootstrap.this: Creating...
+  talos_machine_bootstrap.this: Still creating... [1m0s elapsed]
+  talos_machine_bootstrap.this: Creation complete after 1m42s
+  talos_cluster_kubeconfig.this: Creating...
+  talos_cluster_kubeconfig.this: Creation complete after 3s
+
+  Apply complete! Resources: 13 added, 0 changed, 0 destroyed.
+
+  Outputs:
+
+  cluster_endpoint       = "https://talos-cluster.example-tailnet.ts.net:6443"
+  cluster_health_status  = "skipped (Tailscale enabled - verify manually)"
+  firewall_enabled       = false
+  firewall_warning       = "WARNING: Firewall is DISABLED — enable with: enable_firewall = true"
+  server_ip              = "203.0.113.42"
+  tailscale_enabled      = true
+  tailscale_hostname     = "talos-cluster.example-tailnet.ts.net"
+```
+
+```console
+$ tofu output -raw kubeconfig > kubeconfig && chmod 600 kubeconfig
+$ export KUBECONFIG=$PWD/kubeconfig
+
+$ kubectl get nodes -o wide
+NAME           STATUS   ROLES           AGE   VERSION   INTERNAL-IP   OS-IMAGE
+talos-cluster  Ready    control-plane   2m    v1.32.0   100.64.1.42   Talos (v1.9.2)
+
+$ kubectl get pods -n kube-system
+NAME                                       READY   STATUS      RESTARTS   AGE
+cilium-operator-6f4d8b7c95-xk2mp          1/1     Running     0          90s
+cilium-rn7kq                               1/1     Running     0          90s
+coredns-5c5d6b8b7f-abcde                  1/1     Running     0          90s
+hubble-relay-7f9d8c6b5d-fg2h1             1/1     Running     0          60s
+kube-apiserver-talos-cluster               1/1     Running     0          2m
+kube-controller-manager-talos-cluster      1/1     Running     0          2m
+kube-scheduler-talos-cluster               1/1     Running     0          2m
+zfs-pool-setup-abc12                       0/1     Completed   0          60s
+
+$ kubectl logs -n kube-system job/zfs-pool-setup
+=== ZFS Pool Setup ===
+Pool: tank | Mount: /var/mnt/data
+Creating partition 3 on /dev/nvme0n1...
+Creating partition 1 on /dev/nvme1n1...
+Creating ZFS pool 'tank' with mirror: /dev/nvme0n1p3 /dev/nvme1n1p1
+=== ZFS Pool Created ===
+  pool: tank
+ state: ONLINE
+config:
+
+	NAME           STATE     READ WRITE CKSUM
+	tank           ONLINE       0     0     0
+	  mirror-0     ONLINE       0     0     0
+	    nvme0n1p3  ONLINE       0     0     0
+	    nvme1n1p1  ONLINE       0     0     0
+
+errors: No known data errors
+```
+
+> **Note**: IPs and hostnames are sanitized. Actual deployment time is ~15 minutes, dominated by the OVH server reinstall.
+
+</details>
+
 ## Post-Installation: ZFS Setup
 
-After the cluster is running, set up ZFS for data storage. The ZFS kernel module and `ext-zpool-importer` service are already installed via the [siderolabs/zfs extension](https://github.com/siderolabs/extensions/blob/main/storage/zfs/README.md) — you only need to create the pool once.
+ZFS pool creation is **automated** when `zfs_pool_enabled = true`. An inline manifest Job runs during bootstrap to partition the disks and create the mirror pool. No manual intervention is needed.
 
-> **Note:** Talos Linux has no SSH or shell access. To run host-level commands, you need a privileged Kubernetes pod. See the [ZFS extension docs](https://github.com/siderolabs/extensions/blob/main/storage/zfs/README.md) for the full procedure. The example below uses a privileged pod to access the host namespace:
+```hcl
+# In terraform.tfvars:
+zfs_pool_enabled = true
+zfs_pool_disks = [
+  { device = "/dev/nvme0n1", partition = 3 },  # Remaining space on OS disk
+  { device = "/dev/nvme1n1", partition = 1 },  # First partition on data disk
+]
+```
+
+Verify the pool after deployment:
 
 ```bash
-# Launch a privileged debug pod on the node
-kubectl run zfs-setup --rm -it --restart=Never \
-  --overrides='{"spec":{"hostPID":true,"hostNetwork":true,"containers":[{"name":"zfs-setup","image":"alpine","command":["nsenter","--target","1","--mount","--uts","--ipc","--net","--","sh"],"stdin":true,"tty":true,"securityContext":{"privileged":true}}]}}' \
-  --image=alpine
-
-# Inside the pod — create ZFS partitions (adjust device names as needed)
-sgdisk -n 1:0:0 -t 1:BF01 /dev/nvme1n1
-sgdisk -n 3:0:0 -t 3:BF01 /dev/nvme0n1
-
-# Create mirror pool
-zpool create -m /var/mnt/data tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
+kubectl logs -n kube-system job/zfs-pool-setup
 ```
 
 Once created, the pool is automatically imported on every boot by the `ext-zpool-importer` service. See [ADR-0004](docs/adr/0004-storage-strategy.md) for the full storage strategy.
