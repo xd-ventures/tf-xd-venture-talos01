@@ -322,3 +322,9 @@ variable "zfs_pool_disks" {
     error_message = "At least 2 disks are required for a ZFS mirror pool when zfs_pool_enabled is true."
   }
 }
+
+variable "ephemeral_max_size" {
+  description = "Maximum size for the Talos EPHEMERAL partition. Limits /var to free disk space for ZFS. Only applied on fresh installs."
+  type        = string
+  default     = "100GiB"
+}
