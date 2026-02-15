@@ -327,4 +327,9 @@ variable "ephemeral_max_size" {
   description = "Maximum size for the Talos EPHEMERAL partition. Limits /var to free disk space for ZFS. Only applied on fresh installs."
   type        = string
   default     = "100GiB"
+
+  validation {
+    condition     = can(regex("^[0-9]+(MiB|GiB|TiB)$", var.ephemeral_max_size))
+    error_message = "ephemeral_max_size must be a number followed by a Talos size unit (MiB, GiB, or TiB), e.g. \"100GiB\"."
+  }
 }
