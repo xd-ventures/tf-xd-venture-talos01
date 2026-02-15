@@ -100,11 +100,38 @@ machine:
 ```
 
 ### ZFS Pool Creation (Post-Install)
+
+ZFS pool creation is automated via a Kubernetes Job (inline manifest applied during bootstrap).
+The Job runs as a privileged container and must work within Talos's immutable, shell-less constraints.
+
+#### Talos Host Binary Landscape
+
+Talos has **no shell** (`/bin/sh`, `/bin/bash`) and **no partition tools** (`sfdisk`, `sgdisk`, `fdisk`)
+on the host filesystem. Available host binaries:
+
+| Host Path | Contents |
+|-----------|----------|
+| `/sbin/` | LVM tools, iptables, mkfs.*, cryptsetup, containerd |
+| `/usr/local/sbin/` | `zpool`, `zfs`, `zdb`, `zed` (from `siderolabs/zfs` extension) |
+
+The ZFS extension installs userspace tools at `/usr/local/sbin/` via overlayfs.
+
+#### Job Strategy
+
+1. **Container image**: Alpine (not busybox) — `apk add util-linux` provides `sfdisk`
+2. **Partitioning**: Runs `sfdisk` directly from the container (privileged mode grants `/dev/` access)
+3. **ZFS commands**: Uses `nsenter --mount=/proc/1/ns/mnt -- /usr/local/sbin/zpool` to access host ZFS tools
+4. **Block device checks**: Uses `test -b` directly from container (devices visible in privileged mode)
+
 ```bash
-# After Talos boots, create ZFS pool
-zpool create tank mirror \
-  /dev/disk/by-id/nvme-*-part2 \
-  /dev/disk/by-id/nvme-*-part2
+# Inside the privileged Alpine container:
+ZPOOL="nsenter --mount=/proc/1/ns/mnt -- /usr/local/sbin/zpool"
+
+# Partition directly from container (sfdisk from Alpine's util-linux)
+echo ", , 6a898cc3-1dd2-11b2-99a6-080020736631" | sfdisk --append /dev/nvme0n1
+
+# Create pool via host zpool binary
+$ZPOOL create tank mirror /dev/nvme0n1p3 /dev/nvme1n1p1
 ```
 
 ## Consequences

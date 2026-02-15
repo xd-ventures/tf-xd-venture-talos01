@@ -190,6 +190,25 @@ This requires significant infrastructure changes (see [ADR-0012](adr/0012-single
 2. Mount via machine config
 3. Configure local-path-provisioner paths
 
+## Talos Host Binary Reference
+
+Talos Linux is an immutable, shell-less OS. Understanding what's available on the host is critical
+for any Jobs that use `nsenter` or `hostPID`.
+
+| Host Path | Binaries | Provided By |
+|-----------|----------|-------------|
+| `/sbin/` | LVM (lvcreate, lvchange, etc.), iptables/arptables, mkfs.* (ext4, xfs, vfat), cryptsetup, containerd, dmsetup | Talos base OS |
+| `/usr/local/sbin/` | zpool, zfs, zdb, zed, zstream | `siderolabs/zfs` extension (overlayfs) |
+
+**Not available on host**: `/bin/sh`, `/bin/bash`, `sfdisk`, `sgdisk`, `fdisk`, `partprobe`, `test`, `curl`, `wget`
+
+### Implications for Privileged Jobs
+
+- **nsenter works** for host binaries: `nsenter --mount=/proc/1/ns/mnt -- /usr/local/sbin/zpool`
+- **nsenter fails** for commands not on the host (no shell, no partition tools)
+- Use full paths: `nsenter ... -- /usr/local/sbin/zpool` (not just `zpool`)
+- For missing tools: install them in the container image and run directly (privileged containers have `/dev/` access)
+
 ### Adding Public Services (planned)
 1. Deploy workload with Gateway API
 2. Configure Cloudflare Tunnel route
