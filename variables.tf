@@ -121,20 +121,20 @@ variable "cilium_cli_digest" {
   }
 }
 
-variable "busybox_image" {
-  description = "Busybox image tag for the ZFS pool setup Job."
+variable "alpine_image" {
+  description = "Alpine image tag for the ZFS pool setup Job."
   type        = string
-  default     = "1.37"
+  default     = "3.21"
 }
 
-variable "busybox_digest" {
-  description = "SHA256 digest for the Busybox image. Use 'crane digest busybox:<tag>' to obtain."
+variable "alpine_digest" {
+  description = "SHA256 digest for the Alpine image. Use 'crane digest alpine:<tag>' to obtain."
   type        = string
-  default     = "sha256:b3255e7dfbcd10cb367af0d409747d511aeb66dfac98cf30e97e87e4207dd76f"
+  default     = "sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709"
 
   validation {
-    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.busybox_digest))
-    error_message = "busybox_digest must be a sha256 digest (e.g., sha256:abc123...)."
+    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.alpine_digest))
+    error_message = "alpine_digest must be a sha256 digest (e.g., sha256:abc123...)."
   }
 }
 

@@ -170,8 +170,8 @@ locals {
     pool_name      = var.zfs_pool_name
     mount_point    = var.zfs_pool_mount_point
     disk_args      = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
-    busybox_image  = var.busybox_image
-    busybox_digest = var.busybox_digest
+    alpine_image  = var.alpine_image
+    alpine_digest = var.alpine_digest
   }) : ""
 
   # Cluster-level config patch: CNI, inline manifests, and scheduling

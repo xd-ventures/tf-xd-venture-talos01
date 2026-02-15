@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 ---
 # NOTE: cluster-admin is required because the Job runs with hostPID to access
-# host ZFS/sfdisk binaries via nsenter. A scoped role cannot grant host access.
+# host ZFS binaries via nsenter. A scoped role cannot grant host access.
 # Risk is mitigated by: ttlSecondsAfterFinished cleans up the Job pod,
 # and the ServiceAccount is only usable within the completed Job's context.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -50,7 +50,7 @@ spec:
       hostPID: true
       containers:
         - name: zfs-pool-setup
-          image: busybox:${busybox_image}@${busybox_digest}
+          image: alpine:${alpine_image}@${alpine_digest}
           securityContext:
             privileged: true
           env:
@@ -66,15 +66,22 @@ spec:
             - |
               set -eu
 
-              HOST="nsenter --mount=/proc/1/ns/mnt --"
+              # Install partition tools — sfdisk is NOT on the Talos host
+              # (Talos is immutable/shell-less; only ZFS userspace is added via extension)
+              # partx is needed to inform the kernel about new partitions on in-use disks
+              apk add --no-cache util-linux >/dev/null 2>&1
+
+              # ZFS tools live at /usr/local/sbin/ on the host (siderolabs/zfs extension).
+              # Use nsenter to access them in the host's mount namespace.
+              ZPOOL="nsenter --mount=/proc/1/ns/mnt -- /usr/local/sbin/zpool"
 
               echo "=== ZFS Pool Setup ==="
               echo "Pool: $POOL_NAME | Mount: $MOUNT_POINT"
 
-              # Check if pool already exists
-              if $HOST zpool list "$POOL_NAME" >/dev/null 2>&1; then
+              # Check if pool already exists (via host zpool)
+              if $ZPOOL list "$POOL_NAME" >/dev/null 2>&1; then
                 echo "Pool '$POOL_NAME' already exists — skipping creation."
-                $HOST zpool status "$POOL_NAME"
+                $ZPOOL status "$POOL_NAME"
                 exit 0
               fi
 
@@ -85,25 +92,33 @@ spec:
               # For SATA/SAS drives (e.g., /dev/sda), the convention is /dev/sda3 (no "p" separator).
               # If you need non-NVMe support, update the partdev derivation logic below.
               #
-              # Uses sfdisk (util-linux, available on Talos host) instead of sgdisk (gptfdisk, not available).
-              # Type code bf01 = Solaris Root (used by convention for ZFS partitions).
+              # Partitioning runs directly from the container (privileged mode grants /dev/ access).
+              # sfdisk is from Alpine's util-linux — the Talos host has no partition tools.
+              # Type GUID 6a898cc3-... = Solaris Root (ZFS convention, equivalent to sgdisk BF01).
               MIRROR_DEVICES=""
               for entry in $DISK_ARGS; do
                 device="$${entry%%:*}"
                 partnum="$${entry##*:}"
                 partdev="$${device}p$${partnum}"
 
-                if $HOST test -b "$partdev"; then
+                if test -b "$partdev"; then
                   echo "Partition $partdev already exists — skipping."
                 else
                   echo "Creating partition $partnum on $device..."
-                  # Use sfdisk to append a partition using all remaining space.
-                  # Type GUID 6a898cc3-... = Solaris Root (ZFS convention, equivalent to sgdisk BF01).
-                  echo ", , 6a898cc3-1dd2-11b2-99a6-080020736631" | $HOST sfdisk --append "$device"
-                  $HOST partprobe "$device" 2>/dev/null || true
-                  # Verify the partition was created
-                  sleep 1
-                  if ! $HOST test -b "$partdev"; then
+                  # --force: disk may be in use by Talos (we only append, never modify existing partitions)
+                  # --no-reread: skip automatic partition table reread (fails on in-use disks)
+                  PART_TYPE="6a898cc3-1dd2-11b2-99a6-080020736631"
+                  if sfdisk -d "$device" >/dev/null 2>&1; then
+                    # Disk has existing partition table — append new partition
+                    echo ", , $PART_TYPE" | sfdisk --force --no-reread --append "$device"
+                  else
+                    # Empty disk — create GPT label with one partition
+                    printf 'label: gpt\n, , %s\n' "$PART_TYPE" | sfdisk --force --no-reread "$device"
+                  fi
+                  # Use partx to add new partition entries without re-reading the whole table
+                  partx -u "$device" 2>/dev/null || true
+                  sleep 2
+                  if ! test -b "$partdev"; then
                     echo "ERROR: Expected $partdev to exist after partitioning $device"
                     exit 1
                   fi
@@ -111,12 +126,14 @@ spec:
                 MIRROR_DEVICES="$MIRROR_DEVICES $partdev"
               done
 
-              # Wait briefly for partition devices to appear
+              # Wait briefly for partition devices to stabilize
               sleep 2
 
-              # Create ZFS mirror pool
+              # Create ZFS mirror pool (via host zpool)
+              # -f: allow mirror with different-sized partitions (OS disk has Talos partitions,
+              #     data disk may use the full drive — ZFS uses the smaller device's size)
               echo "Creating ZFS pool '$POOL_NAME' with mirror:$MIRROR_DEVICES"
-              $HOST zpool create -m "$MOUNT_POINT" -o ashift=12 "$POOL_NAME" mirror $MIRROR_DEVICES
+              $ZPOOL create -f -m "$MOUNT_POINT" -o ashift=12 "$POOL_NAME" mirror $MIRROR_DEVICES
 
               echo "=== ZFS Pool Created ==="
-              $HOST zpool status "$POOL_NAME"
+              $ZPOOL status "$POOL_NAME"
