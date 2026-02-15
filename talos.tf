@@ -155,6 +155,23 @@ locals {
     }
   })
 
+  # Limit EPHEMERAL partition to leave space for ZFS on the OS disk.
+  # VolumeConfig is a separate Talos document (not machine/cluster config).
+  # Only applied on fresh installs — cannot shrink an existing EPHEMERAL.
+  # See: https://www.talos.dev/v1.9/reference/configuration/block/volumeconfig/
+  ephemeral_volume_config_patch = var.zfs_pool_enabled ? yamlencode({
+    apiVersion = "v1alpha1"
+    kind       = "VolumeConfig"
+    name       = "EPHEMERAL"
+    provisioning = {
+      diskSelector = {
+        match = "system_disk"
+      }
+      maxSize = var.ephemeral_max_size
+      grow    = false
+    }
+  }) : ""
+
   # Cilium installation manifest
   # Uses Cilium CLI job to install Cilium with native routing mode
   # See templates/cilium-install-job.yaml.tftpl for the full manifest
@@ -201,6 +218,7 @@ locals {
     local.certsans_config_patch,
     local.zfs_config_patch,
     local.cluster_config_patch,
+    local.ephemeral_volume_config_patch,
   ])
 
 }

@@ -64,8 +64,11 @@ NVMe 0 (960GB)              NVMe 1 (960GB)
 | - STATE          |        |                  |
 | - META           |        |                  |
 +------------------+        |                  |
+| EPHEMERAL (/var) |        |                  |
+| (100GiB, capped) |        |                  |
++------------------+        |                  |
 | ZFS Partition    |        | ZFS Partition    |
-| (~940GB)         |<------>| (~940GB)         |
+| (~840GB)         |<------>| (~940GB)         |
 +------------------+        +------------------+
          |                          |
          +------------+-------------+
@@ -78,6 +81,11 @@ NVMe 0 (960GB)              NVMe 1 (960GB)
                       |
               /var/mnt/data
 ```
+
+EPHEMERAL is capped at 100GiB via Talos `VolumeConfig` (`ephemeral_max_size` variable),
+leaving ~840GB free on NVMe 0 for the ZFS partition. Without capping, EPHEMERAL would
+consume all remaining space (~890GB), leaving only a ~1.9GB gap for ZFS.
+The cap only takes effect on fresh installs (matches the OVH BYOI reinstall flow).
 
 ### Implementation
 ```hcl
