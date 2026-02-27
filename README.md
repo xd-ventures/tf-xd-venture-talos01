@@ -288,6 +288,7 @@ Once created, the pool is automatically imported on every boot by the `ext-zpool
 ├── outputs.tf              # Output values
 ├── versions.tf             # Provider versions
 ├── backend.tf              # Remote state configuration
+├── .mcp.json               # MCP server config (iKVM console access)
 ├── terraform.tfvars.example # Example configuration
 ├── templates/
 │   └── cilium-install-job.yaml.tftpl  # Cilium CNI install manifest
@@ -394,6 +395,42 @@ Use `talosctl apply-config` for runtime config changes that don't require reinst
 
 # Boot to rescue mode for debugging
 ./scripts/ovh-rescue-boot.sh
+```
+
+### Visual Console Debugging (iKVM)
+
+When the server is unreachable over the network (boot failure, kernel panic, misconfigured networking), use the [ovh-ikvm-mcp](https://github.com/xd-ventures/ovh-ikvm-mcp) tool to capture screenshots of the server's physical console. This gives Claude Code (or any MCP-capable LLM) direct visual access to what's on screen.
+
+**Setup (pick one):**
+
+```bash
+# Option A: Docker (recommended)
+docker run --rm \
+  -e OVH_ENDPOINT=eu \
+  -e OVH_APPLICATION_KEY="your-app-key" \
+  -e OVH_APPLICATION_SECRET="your-app-secret" \
+  -e OVH_CONSUMER_KEY="your-consumer-key" \
+  -p 3001:3001 \
+  ghcr.io/xd-ventures/ovh-ikvm-mcp:latest
+
+# Option B: Bun (local)
+git clone https://github.com/xd-ventures/ovh-ikvm-mcp.git ~/ovh-ikvm-mcp
+cd ~/ovh-ikvm-mcp && bun install
+export OVH_ENDPOINT="eu"
+export OVH_APPLICATION_KEY="your-app-key"
+export OVH_APPLICATION_SECRET="your-app-secret"
+export OVH_CONSUMER_KEY="your-consumer-key"
+bun start
+```
+
+> [!NOTE]
+> The OVH API credentials require additional IPMI permissions beyond what this project needs.
+> Request them when creating your consumer key — see the [ovh-ikvm-mcp README](https://github.com/xd-ventures/ovh-ikvm-mcp#ovh-api-credentials) for the exact access rules.
+
+The project includes a `.mcp.json` that auto-registers the iKVM server with Claude Code. Once the server is running on `localhost:3001`, ask Claude to take a screenshot:
+
+```
+Take a screenshot of the server console using the ikvm MCP and tell me what you see.
 ```
 
 ### Tailscale Connection Issues

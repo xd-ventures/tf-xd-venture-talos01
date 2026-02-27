@@ -176,6 +176,31 @@ All identifiers use `snake_case`. The existing codebase follows these patterns �
 - Tool configs: match tool names exactly (`talosconfig`, `kubeconfig` — not `talos_config`)
 - Conditional outputs: both branches must have matching object keys (use `null` for disabled state)
 
+## iKVM Console Debugging (MCP)
+
+When a server is unreachable over the network, use [ovh-ikvm-mcp](https://github.com/xd-ventures/ovh-ikvm-mcp) to capture console screenshots via iKVM/IPMI. This project's `.mcp.json` auto-registers it.
+
+### Start the server
+
+```bash
+# Docker (recommended)
+docker run --rm -e OVH_ENDPOINT=eu -e OVH_APPLICATION_KEY=... -e OVH_APPLICATION_SECRET=... -e OVH_CONSUMER_KEY=... -p 3001:3001 ghcr.io/xd-ventures/ovh-ikvm-mcp:latest
+
+# Or local Bun
+cd ~/ovh-ikvm-mcp
+export OVH_ENDPOINT="eu" OVH_APPLICATION_KEY="..." OVH_APPLICATION_SECRET="..." OVH_CONSUMER_KEY="..."
+bun start   # listens on http://localhost:3001/mcp
+```
+
+### MCP tools
+
+- `list_servers` — list bare metal servers with their IDs
+- `get_screenshot(serverId)` — capture a PNG screenshot of the server console (optimized for LLM vision)
+
+### When to use
+
+Use this when the server is stuck during boot, shows a kernel panic, has networking issues, or is otherwise unreachable. Take a screenshot, read the console output, and diagnose the problem.
+
 ## Key Files
 
 ```
