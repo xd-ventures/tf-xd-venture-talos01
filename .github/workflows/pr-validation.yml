@@ -46,7 +46,7 @@ jobs:
         uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33 # v6
 
       - name: Cache OpenTofu providers
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.terraform.d/plugin-cache
           key: tofu-providers-${{ hashFiles('.terraform.lock.hcl') }}
@@ -123,7 +123,7 @@ jobs:
 
       # Gate: fail on CRITICAL misconfigs
       - name: Trivy gate (CRITICAL misconfigs)
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
           scanners: misconfig
@@ -133,7 +133,7 @@ jobs:
 
       # Gate: fail on any secret leak (CRITICAL, HIGH, or MEDIUM confidence)
       - name: Trivy gate (secrets)
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
           scanners: secret
@@ -145,7 +145,7 @@ jobs:
       # GitHub Code Scanning annotations.
       - name: Trivy scan (table)
         if: success() || failure()
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
           scanners: misconfig,secret
@@ -156,7 +156,7 @@ jobs:
 
       - name: Trivy scan (SARIF)
         if: success() || failure()
-        uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
           scanners: misconfig,secret
@@ -169,7 +169,7 @@ jobs:
       # Remove once confirmed working (see also: continue-on-error note).
       - name: Upload SARIF
         if: success() || failure()
-        uses: github/codeql-action/upload-sarif@9e907b5e64f6b83e7804b09294d44122997950d6 # v4
+        uses: github/codeql-action/upload-sarif@0d579ffd059c29b07949a3cce3983f0780820c98 # v4
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
