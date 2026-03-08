@@ -199,7 +199,7 @@ variable "tailscale_tags" {
 # Firewall Configuration Variables
 
 variable "enable_firewall" {
-  description = "Enable Talos firewall to block public IP access. Only enable after verifying Tailscale connectivity works."
+  description = "Enable Talos firewall from first boot. Bakes NetworkDefaultActionConfig + NetworkRuleConfig into the config drive. All ingress blocked except Tailscale, localhost, and cluster CIDRs. Bootstrap uses Tailscale IP. Toggling requires reinstall."
   type        = bool
   default     = false
 }
@@ -208,6 +208,12 @@ variable "pod_network_cidr" {
   description = "Pod network CIDR for CNI (Cilium with Kubernetes IPAM)"
   type        = string
   default     = "10.244.0.0/16"
+}
+
+variable "service_network_cidr" {
+  description = "Kubernetes service network CIDR (ClusterIP range)"
+  type        = string
+  default     = "10.96.0.0/12"
 }
 
 variable "tailscale_ipv4_cidr" {

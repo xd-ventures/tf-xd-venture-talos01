@@ -151,7 +151,7 @@ output "tailscale_access_info" {
 
 output "firewall_warning" {
   description = "Warning displayed when firewall is disabled"
-  value       = !var.enable_firewall ? "WARNING: Firewall is DISABLED — Talos API (50000) and Kubernetes API (6443) are exposed on the public internet. Enable with: enable_firewall = true" : null
+  value       = !var.enable_firewall ? "WARNING: Firewall is DISABLED — Talos API (50000) is unauthenticated before bootstrap. Enable with: enable_firewall = true (triggers reinstall)" : null
 }
 
 # Firewall outputs
@@ -161,13 +161,13 @@ output "firewall_enabled" {
 }
 
 output "firewall_status" {
-  description = "Firewall configuration status and details"
+  description = "Firewall configuration status and details. Note: allowed_networks is the union of networks that can reach at least one service; per-port rules still apply."
   value = var.enable_firewall ? {
-    status           = "ENABLED - Public IP access blocked"
-    allowed_networks = [var.tailscale_ipv4_cidr, var.tailscale_ipv6_cidr]
+    status           = "ENABLED - Baked into config drive, active from first boot"
+    allowed_networks = ["127.0.0.0/8", var.pod_network_cidr, var.service_network_cidr, var.tailscale_ipv4_cidr, var.tailscale_ipv6_cidr]
     blocked_ports    = ["50000 (Talos API)", "6443 (K8s API)", "10250 (kubelet)", "2379-2380 (etcd)"]
-    access_via       = "Tailscale only"
-    emergency_access = "Use iKVM console or disable firewall with enable_firewall=false"
+    access_via       = "Tailscale only (bootstrap uses Tailscale IP)"
+    emergency_access = "OVH iKVM console or rescue mode. Or reinstall with enable_firewall=false."
     } : {
     status           = "DISABLED - Public IP access allowed"
     allowed_networks = ["0.0.0.0/0", "::/0"]
@@ -179,26 +179,16 @@ output "firewall_status" {
 
 # Verification commands (dynamically generated with actual values)
 output "firewall_verification_commands" {
-  description = "Commands to verify Tailscale connectivity before enabling firewall"
-  value = local.tailscale_enabled ? {
-    step_1_get_ip         = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname})"
-    step_2_tailscale_ping = "tailscale ping $TSIP"
-    step_3_talos_api      = "talosctl --endpoints $TSIP --nodes $TSIP version"
-    step_4_k8s_api        = "curl -k https://$TSIP:6443/version"
-    step_5_enable         = "# If all pass: set enable_firewall = true in terraform.tfvars, then run: tofu apply"
-    note                  = "Run these commands in order. All must succeed before enabling firewall."
-    } : {
-    error = "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
-  }
-}
-
-output "firewall_post_enable_test" {
-  description = "Commands to verify firewall is working after enabling"
-  value = local.tailscale_enabled ? {
+  description = "Commands to verify firewall is working (after deploy with enable_firewall=true)"
+  value = local.tailscale_enabled && var.enable_firewall ? {
     test_public_blocked  = "curl -k --connect-timeout 5 https://${local.cluster_ip}:6443/version  # Should FAIL/timeout"
     test_tailscale_works = "curl -k https://$(dig +short ${local.tailscale_ts_net_hostname}):6443/version  # Should SUCCEED"
+    test_talos_api       = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP version"
+    recovery_note        = "If locked out: use OVH iKVM console or rescue mode to edit config drive"
+    } : local.tailscale_enabled ? {
+    note = "Firewall disabled. Set enable_firewall = true and run tofu apply to enable (triggers reinstall)."
     } : {
-    error = "Tailscale not configured"
+    error = "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
   }
 }
 

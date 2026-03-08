@@ -1,19 +1,21 @@
 # Talos Firewall Configuration
 #
-# This file configures Talos ingress firewall rules to block public IP access
-# and allow only Tailscale network traffic.
+# Bakes NetworkDefaultActionConfig + NetworkRuleConfig into the config drive
+# so the firewall is active from first boot — BEFORE Talos API starts listening.
 #
-# SAFETY: Firewall is disabled by default (var.enable_firewall = false)
-# Only enable after verifying Tailscale connectivity works!
+# When enabled, ALL ingress is blocked except:
+# - Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48)
+# - Localhost (127.0.0.0/8) for internal cluster communication
+# - Pod and Service CIDRs for Kubernetes networking
 #
-# Verification steps before enabling:
-# 1. Test Tailscale ping: tailscale ping <tailscale-ip>
-# 2. Test Talos API: talosctl --endpoints <tailscale-ip> version
-# 3. Test K8s API: curl -k https://<tailscale-ip>:6443/version
+# Tailscale uses outbound connections only (UDP 41641 direct, HTTPS 443 DERP),
+# so ingress BLOCK does not affect Tailscale connectivity.
+#
+# Recovery when Tailscale is down: OVH iKVM console or rescue mode.
 
 locals {
-  # Firewall config patches - array of YAML documents for NetworkRuleConfig resources
-  # These are applied as extra documents to the machine configuration
+  # Firewall config patches - array of YAML documents baked into the config drive.
+  # Applied by machined BEFORE any service binds (no race condition).
   firewall_config_patches = var.enable_firewall ? [
     # Default: Block all ingress traffic
     yamlencode({
@@ -22,23 +24,40 @@ locals {
       ingress    = "block"
     }),
 
-    # Allow Talos API (50000) from Tailscale only
+    # Allow Talos API (50000) from Tailscale and localhost
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
-      name       = "apid-tailscale"
+      name       = "talos-api"
       portSelector = {
         ports    = [50000]
         protocol = "tcp"
       }
       ingress = [
+        { subnet = "127.0.0.0/8" },
         { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
+        { subnet = var.tailscale_ipv6_cidr },
       ]
     }),
 
-    # Allow Kubernetes API (6443) from Tailscale AND pod network
-    # Pod network MUST be included - CoreDNS and other pods need to reach the API server!
+    # Allow trustd (50001) from Tailscale and localhost
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "NetworkRuleConfig"
+      name       = "trustd"
+      portSelector = {
+        ports    = [50001]
+        protocol = "tcp"
+      }
+      ingress = [
+        { subnet = "127.0.0.0/8" },
+        { subnet = var.tailscale_ipv4_cidr },
+        { subnet = var.tailscale_ipv6_cidr },
+      ]
+    }),
+
+    # Allow Kubernetes API (6443) from Tailscale, localhost, pods, and services
+    # Pods and services MUST be included — CoreDNS, controllers, and ClusterIP traffic
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -48,63 +67,49 @@ locals {
         protocol = "tcp"
       }
       ingress = [
-        { subnet = var.pod_network_cidr }, # Pods need API access (CoreDNS, controllers, etc.)
+        { subnet = "127.0.0.0/8" },
+        { subnet = var.pod_network_cidr },
+        { subnet = var.service_network_cidr },
         { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
+        { subnet = var.tailscale_ipv6_cidr },
       ]
     }),
 
-    # Allow kubelet (10250) from pod network and Tailscale
-    # Pod network needed for internal cluster communication
+    # Allow kubelet (10250) from localhost, pods, and Tailscale
     # Tailscale needed for kubectl exec/logs
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
-      name       = "kubelet-internal"
+      name       = "kubelet"
       portSelector = {
         ports    = [10250]
         protocol = "tcp"
       }
       ingress = [
+        { subnet = "127.0.0.0/8" },
         { subnet = var.pod_network_cidr },
         { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
+        { subnet = var.tailscale_ipv6_cidr },
       ]
     }),
 
     # Allow etcd (2379-2380) from localhost only (single node cluster)
-    # For multi-node clusters, add other control plane node IPs
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
-      name       = "etcd-internal"
+      name       = "etcd"
       portSelector = {
         ports    = ["2379-2380"]
         protocol = "tcp"
       }
       ingress = [
-        { subnet = "127.0.0.1/32" }
+        { subnet = "127.0.0.0/8" },
       ]
     }),
 
-    # Allow trustd (50001) from Tailscale
-    # Needed for multi-node cluster communication in the future
-    yamlencode({
-      apiVersion = "v1alpha1"
-      kind       = "NetworkRuleConfig"
-      name       = "trustd-tailscale"
-      portSelector = {
-        ports    = [50001]
-        protocol = "tcp"
-      }
-      ingress = [
-        { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
-      ]
-    }),
-
-    # Allow Cilium VXLAN (UDP 8472) for CNI networking
-    # Cilium uses the same port as Flannel for VXLAN encapsulation
+    # Allow Cilium VXLAN (UDP 8472) from localhost and pods
+    # Single-node: VXLAN traffic is local. For multi-node, add node subnet CIDRs
+    # since VXLAN outer headers use node IPs, not pod IPs.
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -114,13 +119,12 @@ locals {
         protocol = "udp"
       }
       ingress = [
+        { subnet = "127.0.0.0/8" },
         { subnet = var.pod_network_cidr },
-        { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
       ]
     }),
 
-    # Allow Cilium health checks (TCP 4240)
+    # Allow Cilium health checks (TCP 4240) from localhost and pods
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -130,14 +134,12 @@ locals {
         protocol = "tcp"
       }
       ingress = [
+        { subnet = "127.0.0.0/8" },
         { subnet = var.pod_network_cidr },
-        { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
       ]
     }),
 
-    # Allow Hubble Relay (TCP 4244)
-    # Needed for Hubble observability via Tailscale
+    # Allow Hubble Relay (TCP 4244) from Tailscale and localhost
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -147,58 +149,26 @@ locals {
         protocol = "tcp"
       }
       ingress = [
+        { subnet = "127.0.0.0/8" },
         { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr }
+        { subnet = var.tailscale_ipv6_cidr },
       ]
     }),
 
-    # NOTE: ICMP rules removed - Talos NetworkRuleConfig requires ports for portSelector
-    # which doesn't apply to ICMP. Tailscale health checks may use TCP fallback.
-    # TODO: Investigate if Talos has a separate mechanism for ICMP rules
+    # Allow Hubble Peer (TCP 4245) from localhost and pods
+    # Cilium agent-to-agent communication for Hubble observability
+    yamlencode({
+      apiVersion = "v1alpha1"
+      kind       = "NetworkRuleConfig"
+      name       = "hubble-peer"
+      portSelector = {
+        ports    = [4245]
+        protocol = "tcp"
+      }
+      ingress = [
+        { subnet = "127.0.0.0/8" },
+        { subnet = var.pod_network_cidr },
+      ]
+    }),
   ] : []
-}
-
-# Apply firewall configuration to the cluster
-# Only created when var.enable_firewall = true
-#
-# IMPORTANT: When Tailscale is enabled, firewall operations must use the Tailscale
-# hostname/IP since the firewall blocks public IP access. The ts.net hostname
-# is used which your local Tailscale MagicDNS will resolve.
-resource "talos_machine_configuration_apply" "firewall" {
-  count = var.enable_firewall ? 1 : 0
-
-  depends_on = [talos_machine_bootstrap.this]
-
-  lifecycle {
-    precondition {
-      condition = (
-        !local.tailscale_enabled ||
-        var.tailscale_device_lookup ||
-        var.tailscale_ip != ""
-      )
-      error_message = <<-EOT
-        LOCKOUT RISK: Firewall is enabled with Tailscale but there is no way to resolve the
-        Tailscale IP. The firewall will block public IP access, but Terraform would connect
-        via the public IP — causing immediate lockout.
-
-        Fix ONE of:
-        1. Set tailscale_device_lookup = true and add 'devices:read' scope to your
-           Tailscale OAuth client (recommended — see ADR-0008)
-        2. Set tailscale_ip to the node's Tailscale IP (100.x.y.z)
-      EOT
-    }
-  }
-
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
-
-  # Use Tailscale IP when enabled (public IP is blocked by firewall)
-  # This is required because the Talos provider may not have access to Tailscale's MagicDNS
-  node     = local.tailscale_enabled ? local.tailscale_endpoint_ip : local.cluster_ip
-  endpoint = local.tailscale_enabled ? local.tailscale_endpoint_ip : local.cluster_ip
-
-  config_patches = local.firewall_config_patches
-
-  # Apply without reboot - firewall rules take effect immediately
-  apply_mode = "no_reboot"
 }

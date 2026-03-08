@@ -84,6 +84,13 @@ resource "terraform_data" "reinstall_trigger" {
     var.tailscale_hostname,
     var.tailscale_tailnet,
     sha256(jsonencode(var.tailscale_extra_args)),
+    # Firewall toggle and CIDRs — firewall rules are baked into the config drive,
+    # so changing any of these requires a reinstall to update the config drive content
+    var.enable_firewall,
+    var.pod_network_cidr,
+    var.service_network_cidr,
+    var.tailscale_ipv4_cidr,
+    var.tailscale_ipv6_cidr,
   ]
 }
 
@@ -107,8 +114,8 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     efi_bootloader_path = local.efi_bootloader_path_grub
 
     # Config drive user data - Talos expects raw YAML machine config
-    # OVH will base64 encode this automatically, so we pass it as plain text
-    # Double-encoding would prevent Talos from reading it
+    # OVH accepts cleartext (processes escape sequences) or base64 (decoded before writing)
+    # Currently using cleartext — see issue #147 for base64 migration
     config_drive_user_data = data.talos_machine_configuration.controlplane.machine_configuration
 
     # Config drive metadata - minimal metadata to ensure config drive structure
