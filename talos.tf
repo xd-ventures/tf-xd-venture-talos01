@@ -167,9 +167,9 @@ locals {
   # Uses a privileged Job with nsenter to run host ZFS/sfdisk binaries
   # See templates/zfs-pool-job.yaml.tftpl for the full manifest
   zfs_pool_manifest = var.zfs_pool_enabled ? templatefile("${path.module}/templates/zfs-pool-job.yaml.tftpl", {
-    pool_name      = var.zfs_pool_name
-    mount_point    = var.zfs_pool_mount_point
-    disk_args      = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
+    pool_name     = var.zfs_pool_name
+    mount_point   = var.zfs_pool_mount_point
+    disk_args     = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
     alpine_image  = var.alpine_image
     alpine_digest = var.alpine_digest
   }) : ""
