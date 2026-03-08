@@ -113,9 +113,9 @@ spec:
                     echo ", , $PART_TYPE" | sfdisk --force --no-reread --append "$device"
                   else
                     # Empty disk -- create GPT label with one partition
-                    # NOTE: Use { echo; echo; } instead of printf with \n to avoid
-                    # OVH BYOI config drive bug that expands \n into real newlines,
-                    # breaking the YAML literal block scalar in inlineManifests.
+                    # NOTE: Use { echo; echo; } instead of printf to avoid
+                    # OVH config drive expanding escape sequences in cleartext mode,
+                    # which breaks YAML literal block scalars in inlineManifests.
                     { echo "label: gpt"; echo ", , $PART_TYPE"; } | sfdisk --force --no-reread "$device"
                   fi
                   # Use partx to add new partition entries without re-reading the whole table
