@@ -108,6 +108,8 @@ locals {
     }),
 
     # Allow Cilium VXLAN (UDP 8472) from localhost and pods
+    # Single-node: VXLAN traffic is local. For multi-node, add node subnet CIDRs
+    # since VXLAN outer headers use node IPs, not pod IPs.
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"

@@ -161,7 +161,7 @@ output "firewall_enabled" {
 }
 
 output "firewall_status" {
-  description = "Firewall configuration status and details"
+  description = "Firewall configuration status and details. Note: allowed_networks is the union of networks that can reach at least one service; per-port rules still apply."
   value = var.enable_firewall ? {
     status           = "ENABLED - Baked into config drive, active from first boot"
     allowed_networks = ["127.0.0.0/8", var.pod_network_cidr, var.service_network_cidr, var.tailscale_ipv4_cidr, var.tailscale_ipv6_cidr]

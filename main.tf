@@ -84,9 +84,13 @@ resource "terraform_data" "reinstall_trigger" {
     var.tailscale_hostname,
     var.tailscale_tailnet,
     sha256(jsonencode(var.tailscale_extra_args)),
-    # Firewall toggle — firewall rules are baked into the config drive,
-    # so changing this requires a reinstall to update the config drive content
+    # Firewall toggle and CIDRs — firewall rules are baked into the config drive,
+    # so changing any of these requires a reinstall to update the config drive content
     var.enable_firewall,
+    var.pod_network_cidr,
+    var.service_network_cidr,
+    var.tailscale_ipv4_cidr,
+    var.tailscale_ipv6_cidr,
   ]
 }
 
