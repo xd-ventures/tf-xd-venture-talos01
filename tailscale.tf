@@ -62,8 +62,10 @@ resource "tailscale_tailnet_key" "talos" {
 # Tailscale device data source for dynamic IP lookup
 # See ADR-0009 for design rationale
 #
-# This data source waits for the Tailscale device to appear after bootstrap
-# and returns the current IP address. This avoids stale IPs in terraform.tfvars.
+# This data source waits for the Tailscale device to appear after reinstall.
+# The Tailscale extension starts on boot (BEFORE bootstrap), so the device
+# appears in the tailnet within seconds of boot. This allows bootstrap to
+# use the Tailscale IP when the firewall is enabled.
 #
 # Requirements:
 # - OAuth client needs 'devices:read' scope (included in the recommended setup)
@@ -73,9 +75,9 @@ data "tailscale_device" "talos_node" {
   count = local.tailscale_enabled && var.tailscale_device_lookup ? 1 : 0
 
   hostname = var.tailscale_hostname
-  wait_for = "180s" # Wait up to 3 min for device to appear after bootstrap
+  wait_for = "180s" # Wait up to 3 min for device to appear after boot
 
-  depends_on = [talos_machine_bootstrap.this]
+  depends_on = [ovh_dedicated_server_reinstall_task.talos]
 }
 
 output "tailscale_device_id" {

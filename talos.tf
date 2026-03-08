@@ -88,7 +88,7 @@ locals {
   )
 
   # Use explicit endpoints/nodes if provided, otherwise use cluster IP
-  # For initial bootstrap, always use public IP (Tailscale not yet available)
+  # These are used for talosctl config and health checks (not bootstrap)
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
   talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
 
@@ -114,13 +114,6 @@ locals {
       [for arg in var.tailscale_extra_args : arg]
     )
   }) : ""
-
-  # NOTE: Talos does not support inline firewall rules in machine configuration.
-  # To restrict API access to Tailscale only, use one of these approaches:
-  # 1. OVH's network firewall (block ports 50000, 6443 externally)
-  # 2. Tailscale ACLs to control which devices can access the cluster
-  # 3. Only share the ts.net hostname (not the public IP) with authorized users
-  # The cluster endpoint is set to ts.net hostname, so configs will use Tailscale by default.
 
   # CertSANs configuration for ts.net hostname
   certsans_config_patch = local.tailscale_ts_net_hostname != "" ? yamlencode({
@@ -204,13 +197,18 @@ locals {
   })
 
   # Combined config patches for machine configuration
-  config_patches = compact([
-    local.tailscale_config_patch,
-    local.certsans_config_patch,
-    local.zfs_config_patch,
-    local.cluster_config_patch,
-    local.ephemeral_volume_config_patch,
-  ])
+  # Firewall patches are included here (not applied post-boot) so the firewall
+  # is active from first boot — BEFORE Talos API starts listening.
+  config_patches = compact(concat(
+    [
+      local.tailscale_config_patch,
+      local.certsans_config_patch,
+      local.zfs_config_patch,
+      local.cluster_config_patch,
+      local.ephemeral_volume_config_patch,
+    ],
+    local.firewall_config_patches,
+  ))
 
 }
 
@@ -244,20 +242,39 @@ data "talos_client_configuration" "this" {
 # - The health check waits for etcd to be healthy
 # - But etcd can't be healthy until bootstrap runs
 # - The bootstrap resource has its own internal logic to wait for the Talos API to be ready
+#
+# When firewall is enabled, bootstrap uses the Tailscale IP because port 50000
+# is blocked on the public IP from first boot. The Tailscale device is available
+# before bootstrap (the extension starts on boot, before etcd init).
 resource "talos_machine_bootstrap" "this" {
   depends_on = [
     ovh_dedicated_server_reinstall_task.talos,
+    data.tailscale_device.talos_node,
   ]
 
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = local.cluster_ip
-  endpoint             = local.cluster_ip
+  node                 = var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+  endpoint             = var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
 
-  # Force bootstrap to re-run when the server is reinstalled
   lifecycle {
+    # Force bootstrap to re-run when the server is reinstalled
     replace_triggered_by = [
       terraform_data.reinstall_trigger,
     ]
+
+    precondition {
+      condition = (
+        !var.enable_firewall ||
+        (local.tailscale_enabled && var.tailscale_device_lookup)
+      )
+      error_message = <<-EOT
+        LOCKOUT: Firewall is enabled but bootstrap cannot reach the Talos API.
+        The firewall blocks port 50000 on the public IP from first boot.
+        Bootstrap must use the Tailscale IP, which requires:
+        1. tailscale_hostname and tailscale_tailnet configured
+        2. tailscale_device_lookup = true (with 'devices:read' OAuth scope)
+      EOT
+    }
   }
 }
 
@@ -284,6 +301,6 @@ resource "talos_cluster_kubeconfig" "this" {
   depends_on = [talos_machine_bootstrap.this]
 
   client_configuration = talos_machine_secrets.this.client_configuration
-  node                 = local.cluster_ip
-  endpoint             = local.cluster_ip
+  node                 = var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+  endpoint             = var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
 }
