@@ -46,7 +46,7 @@ jobs:
         uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33 # v6
 
       - name: Cache OpenTofu providers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ~/.terraform.d/plugin-cache
           key: tofu-providers-${{ hashFiles('.terraform.lock.hcl') }}
