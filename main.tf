@@ -112,9 +112,11 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     config_drive_user_data = data.talos_machine_configuration.controlplane.machine_configuration
 
     # Config drive metadata - minimal metadata to ensure config drive structure
-    # This helps ensure the config drive is properly mounted and recognized
+    # IMPORTANT: instance-id must change on every reinstall to force OVH to
+    # regenerate the config drive. A static instance-id causes OVH to reuse
+    # the old config drive even when config_drive_user_data has changed.
     config_drive_metadata = {
-      instance-id    = var.cluster_name
+      instance-id    = "${var.cluster_name}-${terraform_data.reinstall_trigger.id}"
       local-hostname = var.cluster_name
     }
   }

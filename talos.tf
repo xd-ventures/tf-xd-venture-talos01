@@ -10,17 +10,11 @@
 resource "talos_machine_secrets" "this" {}
 
 # Create image factory schematic with extensions
-# Sets openstack platform kernel arg for OVH config drive compatibility
 resource "talos_image_factory_schematic" "this" {
   schematic = yamlencode({
     customization = {
-      # Explicitly set openstack platform kernel arg since OVH creates OpenStack format config drive
-      # OVH BYOI creates config drive with config-2 label and openstack/latest/user_data structure
-      # Talos openstack platform supports this format
-      extraKernelArgs = concat(
-        ["talos.platform=openstack"], # OVH creates OpenStack format, use OpenStack platform
-        var.extra_kernel_args
-      )
+      # Extra kernel args (e.g. serial console); platform is set via data.talos_image_factory_urls
+      extraKernelArgs = var.extra_kernel_args
       systemExtensions = {
         officialExtensions = concat(
           [
@@ -38,11 +32,8 @@ resource "talos_image_factory_schematic" "this" {
 }
 
 # Get Talos OS image factory URLs
-# Use "openstack" platform since OVH creates OpenStack format config drive (config-2 label, openstack/latest/user_data)
-# OVH BYOI creates config drive with:
-#   - Volume label: config-2 (OpenStack format)
-#   - File location: openstack/latest/user_data
-# Talos openstack platform supports this format and reads the config from the correct location
+# Platform "openstack" tells Talos to read config from the OVH config drive
+# (config-2 label, openstack/latest/user_data)
 data "talos_image_factory_urls" "this" {
   talos_version = var.talos_version
   schematic_id  = talos_image_factory_schematic.this.id
@@ -101,10 +92,10 @@ locals {
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
   talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
 
-  # Tailscale auth key — read from the stable proxy to avoid drift.
-  # The proxy captures the key at creation time and ignores subsequent expiry.
-  # Fresh keys are generated on reinstall via replace_triggered_by.
-  tailscale_authkey = local.tailscale_enabled ? terraform_data.tailscale_key_stable[0].output : ""
+  # Tailscale auth key — read directly from the key resource.
+  # The key is consumed once on boot (TS_AUTH_ONCE=true) and expires after 1h.
+  # On reinstall, replace_triggered_by on the key resource generates a fresh one.
+  tailscale_authkey = local.tailscale_enabled ? tailscale_tailnet_key.talos[0].key : ""
 
   # Tailscale extension service configuration patch
   # NOTE: TS_AUTH_ONCE=true means the auth key is used only once during initial setup.

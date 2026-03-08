@@ -32,8 +32,12 @@ provider "tailscale" {
 #
 # DRIFT PREVENTION: The key is a transient credential that expires server-side after 1h.
 # Without lifecycle guards, every `tofu plan` after expiry would show a recreate diff.
-# We use ignore_changes + recreate_if_invalid="never" to suppress this. On reinstall,
-# replace_triggered_by on the terraform_data proxy forces a fresh key.
+# We use recreate_if_invalid="never" to suppress expiry-driven recreation.
+# On reinstall, replace_triggered_by forces a fresh key directly on this resource.
+#
+# IMPORTANT: Do NOT use ignore_changes=all here — it blocks replace_triggered_by from
+# generating a fresh key on reinstall. The previous proxy pattern (terraform_data.tailscale_key_stable)
+# was removed because it silently re-read the same consumed key. See issue #129.
 resource "tailscale_tailnet_key" "talos" {
   count = local.tailscale_enabled ? 1 : 0
 
@@ -47,23 +51,8 @@ resource "tailscale_tailnet_key" "talos" {
   recreate_if_invalid = "never" # Key is consumed once — don't recreate on expiry
 
   lifecycle {
-    ignore_changes = all # After creation, never diff against Tailscale API state
-  }
-}
-
-# Stable proxy for the auth key value — decouples downstream resources from the
-# tailscale_tailnet_key lifecycle. Without this, key expiry would cascade changes
-# through the machine config and firewall resources.
-#
-# On reinstall, replace_triggered_by forces a new key + new proxy in one operation.
-resource "terraform_data" "tailscale_key_stable" {
-  count = local.tailscale_enabled ? 1 : 0
-
-  input = tailscale_tailnet_key.talos[0].key
-
-  lifecycle {
-    ignore_changes = [input] # Capture once, never re-read from expired key
-
+    # On reinstall, generate a fresh key. Between reinstalls, the key sits consumed/expired
+    # in state — that's fine, it was used once on boot and is now irrelevant.
     replace_triggered_by = [
       terraform_data.reinstall_trigger,
     ]
