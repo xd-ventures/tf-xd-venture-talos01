@@ -66,7 +66,7 @@ spec:
             - |
               set -eu
 
-              # Install partition tools — sfdisk is NOT on the Talos host
+              # Install partition tools -- sfdisk is NOT on the Talos host
               # (Talos is immutable/shell-less; only ZFS userspace is added via extension)
               # partx is needed to inform the kernel about new partitions on in-use disks
               apk add --no-cache util-linux >/dev/null 2>&1
@@ -80,7 +80,7 @@ spec:
 
               # Check if pool already exists (via host zpool)
               if $ZPOOL list "$POOL_NAME" >/dev/null 2>&1; then
-                echo "Pool '$POOL_NAME' already exists — skipping creation."
+                echo "Pool '$POOL_NAME' already exists -- skipping creation."
                 $ZPOOL status "$POOL_NAME"
                 exit 0
               fi
@@ -93,7 +93,7 @@ spec:
               # If you need non-NVMe support, update the partdev derivation logic below.
               #
               # Partitioning runs directly from the container (privileged mode grants /dev/ access).
-              # sfdisk is from Alpine's util-linux — the Talos host has no partition tools.
+              # sfdisk is from Alpine's util-linux -- the Talos host has no partition tools.
               # Type GUID 6a898cc3-... = Solaris Root (ZFS convention, equivalent to sgdisk BF01).
               MIRROR_DEVICES=""
               for entry in $DISK_ARGS; do
@@ -102,18 +102,21 @@ spec:
                 partdev="$${device}p$${partnum}"
 
                 if test -b "$partdev"; then
-                  echo "Partition $partdev already exists — skipping."
+                  echo "Partition $partdev already exists -- skipping."
                 else
                   echo "Creating partition $partnum on $device..."
                   # --force: disk may be in use by Talos (we only append, never modify existing partitions)
                   # --no-reread: skip automatic partition table reread (fails on in-use disks)
                   PART_TYPE="6a898cc3-1dd2-11b2-99a6-080020736631"
                   if sfdisk -d "$device" >/dev/null 2>&1; then
-                    # Disk has existing partition table — append new partition
+                    # Disk has existing partition table -- append new partition
                     echo ", , $PART_TYPE" | sfdisk --force --no-reread --append "$device"
                   else
-                    # Empty disk — create GPT label with one partition
-                    printf 'label: gpt\n, , %s\n' "$PART_TYPE" | sfdisk --force --no-reread "$device"
+                    # Empty disk -- create GPT label with one partition
+                    # NOTE: Use { echo; echo; } instead of printf with \n to avoid
+                    # OVH BYOI config drive bug that expands \n into real newlines,
+                    # breaking the YAML literal block scalar in inlineManifests.
+                    { echo "label: gpt"; echo ", , $PART_TYPE"; } | sfdisk --force --no-reread "$device"
                   fi
                   # Use partx to add new partition entries without re-reading the whole table
                   partx -u "$device" 2>/dev/null || true
@@ -131,7 +134,7 @@ spec:
 
               # Create ZFS mirror pool (via host zpool)
               # -f: allow mirror with different-sized partitions (OS disk has Talos partitions,
-              #     data disk may use the full drive — ZFS uses the smaller device's size)
+              #     data disk may use the full drive -- ZFS uses the smaller device's size)
               echo "Creating ZFS pool '$POOL_NAME' with mirror:$MIRROR_DEVICES"
               $ZPOOL create -f -m "$MOUNT_POINT" -o ashift=12 "$POOL_NAME" mirror $MIRROR_DEVICES
 
