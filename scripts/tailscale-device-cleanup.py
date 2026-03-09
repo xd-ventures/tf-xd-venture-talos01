@@ -27,6 +27,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+API_TIMEOUT = 10  # seconds — fail fast if Tailscale API is unreachable
+
 
 def get_oauth_token(client_id: str, client_secret: str) -> str:
     """Exchange OAuth client credentials for an access token."""
@@ -41,7 +43,7 @@ def get_oauth_token(client_id: str, client_secret: str) -> str:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     try:
-        resp = urllib.request.urlopen(req)
+        resp = urllib.request.urlopen(req, timeout=API_TIMEOUT)
     except urllib.error.HTTPError as e:
         print(f"ERROR: OAuth token request failed: {e.code} {e.reason}", file=sys.stderr)
         if e.code == 401:
@@ -56,7 +58,7 @@ def list_devices(token: str) -> list:
         "https://api.tailscale.com/api/v2/tailnet/-/devices?fields=default",
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = urllib.request.urlopen(req)
+    resp = urllib.request.urlopen(req, timeout=API_TIMEOUT)
     return json.loads(resp.read()).get("devices", [])
 
 
@@ -68,7 +70,7 @@ def delete_device(token: str, device_id: str) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     try:
-        urllib.request.urlopen(req)
+        urllib.request.urlopen(req, timeout=API_TIMEOUT)
     except urllib.error.HTTPError as e:
         if e.code == 403:
             print(
