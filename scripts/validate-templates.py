@@ -18,6 +18,8 @@ Exit codes:
   1 - validation errors found
 """
 
+from __future__ import annotations
+
 import glob
 import re
 import sys
@@ -66,11 +68,14 @@ def check_escape_sequences(content: str, filepath: str) -> list[str]:
                 in_block_scalar = False
 
         if not in_block_scalar:
-            # Check for literal \n or \t (not inside quotes where they'd be intentional)
-            if re.search(r'(?<!\\)\\[nt]', stripped):
-                # Skip if it's inside a comment
-                if not stripped.lstrip().startswith("#"):
-                    errors.append(f"{filepath}:{lineno}: literal escape sequence found: {stripped}")
+            # Skip comments
+            if stripped.lstrip().startswith("#"):
+                continue
+            # Check for literal \n or \t outside quoted strings
+            # Remove single- and double-quoted segments before scanning
+            unquoted = re.sub(r'"[^"]*"', '', re.sub(r"'[^']*'", '', stripped))
+            if re.search(r'(?<!\\)\\[nt]', unquoted):
+                errors.append(f"{filepath}:{lineno}: literal escape sequence found: {stripped}")
 
     return errors
 
