@@ -8,8 +8,8 @@
 #    {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"], "tag:terraform": []}}
 #
 # 2. Create OAuth client at: Tailscale Admin -> Settings -> OAuth clients
-#    - Scopes: auth_keys + devices:read (recommended)
-#      Add devices:core for automated device cleanup on destroy
+#    - Scopes: auth_keys + devices:read + devices:core (recommended)
+#      devices:core enables automated stale device cleanup on reinstall (see #156)
 #    - Tags: tag:terraform
 #
 # 3. Set environment variables:
@@ -38,6 +38,30 @@ provider "tailscale" {
 # IMPORTANT: Do NOT use ignore_changes=all here — it blocks replace_triggered_by from
 # generating a fresh key on reinstall. The previous proxy pattern (terraform_data.tailscale_key_stable)
 # was removed because it silently re-read the same consumed key. See issue #129.
+# Clean up stale Tailscale devices before reinstall.
+# On reinstall, Tailscale registers a new device. If the old entry still exists,
+# Tailscale appends a "-1" suffix (e.g., "talos-xd-venture" → "talos-xd-venture-1"),
+# which breaks data.tailscale_device hostname lookup — it finds the STALE device
+# with the wrong IP instead of the new one.
+#
+# This resource runs scripts/tailscale-device-cleanup.py to delete any existing
+# devices matching the hostname (exact or suffixed) before the reinstall creates
+# a new one. Requires 'devices:core' OAuth scope for DELETE.
+resource "terraform_data" "tailscale_device_cleanup" {
+  count = local.tailscale_enabled ? 1 : 0
+
+  triggers_replace = [
+    terraform_data.reinstall_trigger.id,
+  ]
+
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/scripts/tailscale-device-cleanup.py"
+    environment = {
+      TS_CLEANUP_HOSTNAME = var.tailscale_hostname
+    }
+  }
+}
+
 resource "tailscale_tailnet_key" "talos" {
   count = local.tailscale_enabled ? 1 : 0
 
