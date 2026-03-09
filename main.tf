@@ -91,6 +91,11 @@ resource "terraform_data" "reinstall_trigger" {
     var.service_network_cidr,
     var.tailscale_ipv4_cidr,
     var.tailscale_ipv6_cidr,
+    # Config patches baked into the config drive — changes require reinstall
+    # (inline manifests: Cilium install, ZFS pool setup, etc.)
+    sha256(local.cluster_config_patch),
+    sha256(local.zfs_config_patch),
+    sha256(local.ephemeral_volume_config_patch),
   ]
 }
 
