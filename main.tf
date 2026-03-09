@@ -114,9 +114,11 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     efi_bootloader_path = local.efi_bootloader_path_grub
 
     # Config drive user data - Talos expects raw YAML machine config
-    # OVH accepts cleartext (processes escape sequences) or base64 (decoded before writing)
-    # Currently using cleartext — see issue #147 for base64 migration
-    config_drive_user_data = data.talos_machine_configuration.controlplane.machine_configuration
+    # Base64-encoded: OVH base64-decodes before writing to the config drive ISO.
+    # This avoids OVH's cleartext escape processing (\n → newline, \t → tab, etc.)
+    # which corrupted YAML when templates contained literal escape sequences.
+    # See: docs/rca-2026-02-config-drive-yaml-parse.md
+    config_drive_user_data = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
 
     # Config drive metadata - minimal metadata to ensure config drive structure
     # IMPORTANT: instance-id must change on every reinstall to force OVH to
