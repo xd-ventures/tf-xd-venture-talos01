@@ -45,3 +45,14 @@ repos:
     hooks:
       - id: shellcheck
         args: ['-x']
+
+  # Template YAML validation
+  - repo: local
+    hooks:
+      - id: validate-templates
+        name: Validate rendered template YAML
+        entry: python3 scripts/validate-templates.py
+        language: python
+        additional_dependencies: ['pyyaml']
+        files: '^templates/.*\.tftpl$'
+        pass_filenames: true
