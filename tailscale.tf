@@ -75,7 +75,7 @@ data "tailscale_device" "talos_node" {
   count = local.tailscale_enabled && var.tailscale_device_lookup ? 1 : 0
 
   hostname = var.tailscale_hostname
-  wait_for = "180s" # Wait up to 3 min for device to appear after boot
+  wait_for = "600s" # Wait up to 10 min for device to appear after reinstall + reboot
 
   depends_on = [ovh_dedicated_server_reinstall_task.talos]
 }
