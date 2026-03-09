@@ -226,6 +226,19 @@ data "talos_machine_configuration" "controlplane" {
   # CRITICAL: Wait for Tailscale key to be created before generating config
   # Without this, the config is evaluated during planning before the key exists
   depends_on = [tailscale_tailnet_key.talos]
+
+  lifecycle {
+    # Validate resolved config before generating machine configuration.
+    precondition {
+      condition     = !strcontains(local.actual_cluster_endpoint, "<server-ip>")
+      error_message = "Cluster endpoint still contains <server-ip> placeholder. The OVH server IP could not be resolved."
+    }
+
+    precondition {
+      condition     = length(local.config_patches) >= 3
+      error_message = "Expected at least 3 config patches (tailscale, zfs, cluster) but got ${length(local.config_patches)}. Check that required patches are not empty."
+    }
+  }
 }
 
 # Generate talosconfig for talosctl

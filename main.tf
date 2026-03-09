@@ -146,5 +146,17 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     replace_triggered_by = [
       terraform_data.reinstall_trigger,
     ]
+
+    # Validate config drive content before reinstall — a broken config baked into the
+    # config drive makes the server unreachable (no shell, no recovery without rescue mode).
+    precondition {
+      condition     = !local.tailscale_enabled || local.tailscale_authkey != ""
+      error_message = "Tailscale is enabled but auth key is empty. The key may be consumed or expired. Taint tailscale_tailnet_key.talos to generate a fresh one."
+    }
+
+    precondition {
+      condition     = local.image_url != ""
+      error_message = "Image URL is empty. Check talos_version and the image factory schematic."
+    }
   }
 }
