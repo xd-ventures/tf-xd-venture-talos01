@@ -97,6 +97,7 @@ resource "terraform_data" "reinstall_trigger" {
 # Talos OS Installation Task
 # This will trigger a server reinstallation with Talos OS using BYOI
 resource "ovh_dedicated_server_reinstall_task" "talos" {
+  depends_on   = [terraform_data.tailscale_device_cleanup]
   service_name = ovh_dedicated_server.talos01.service_name
   os           = "byoi_64"
 
