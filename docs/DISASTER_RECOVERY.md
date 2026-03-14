@@ -184,6 +184,13 @@ tofu state show terraform_data.reinstall
 
 ### Remove Stale Resources
 
+> **CAUTION**: Always back up state before removing resources. State removal is irreversible.
+
+```bash
+# Back up current state first
+tofu state pull > state-backup.json
+```
+
 If a resource exists in state but not in reality:
 
 ```bash
