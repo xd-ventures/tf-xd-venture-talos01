@@ -186,3 +186,7 @@ The config drive is your **only metadata source** on OVH bare metal. There is no
 - [OpenStack Config Drive Specification](https://docs.openstack.org/nova/latest/user/metadata.html#config-drives) — upstream config drive format
 - [OVH API Reference](https://api.ovh.com/console/#/dedicated/server) — dedicated server API endpoints
 - Empirical testing on OVH bare metal servers as part of the [tf-xd-venture-talos01](https://github.com/xd-ventures/tf-xd-venture-talos01) project
+
+## Contributors
+
+This reference was compiled by the [xd-ventures](https://github.com/xd-ventures) team based on hands-on experience deploying Talos Linux on OVH dedicated servers with BYOI.
