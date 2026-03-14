@@ -1,5 +1,10 @@
 # OVH bare metal config drive: the complete BYO guide
 
+> **Disclaimer**: This reference was compiled from OVH documentation, OpenStack
+> specifications, and empirical testing on OVH dedicated servers. OVH may change
+> their implementation without notice. Always verify behavior against your actual
+> server environment.
+
 **OVH writes a small (~1 MB) read-only partition labeled `config-2` to the last position on your server's primary disk during every provisioning event.** This partition uses the OpenStack config drive v2 format — an ISO 9660 filesystem (for BYOI deployments) or VFAT (for BYOLinux) — containing JSON metadata files your custom OS can mount and parse without cloud-init or any network-based metadata service. OVH bare metal has **no HTTP metadata endpoint** at `169.254.169.254`; the config drive is the sole source of instance metadata. Understanding this mechanism is essential for anyone deploying a non-standard OS, because you must implement your own config drive consumer to retrieve network configuration, SSH keys, hostname, and any custom data you injected via the API.
 
 ## Filesystem format and internal directory structure
@@ -174,3 +179,10 @@ Building a non-Linux or non-standard OS that needs to consume the OVH config dri
 7. **Unmount the config drive** — it remains on disk but doesn't need to stay mounted
 
 The config drive is your **only metadata source** on OVH bare metal. There is no fallback HTTP metadata service, no DHCP-based metadata injection, and no out-of-band mechanism. If your OS cannot read the config drive, it boots without network configuration, hostname, or SSH keys. Plan your kernel and userspace accordingly — at minimum, you need ISO 9660 filesystem support (or VFAT if using BYOLinux) and a JSON parser.
+
+## Sources
+
+- [OVH BYOI Documentation](https://help.ovhcloud.com/csm/en-dedicated-servers-bringyourownimage) — official OVH Bring Your Own Image guide
+- [OpenStack Config Drive Specification](https://docs.openstack.org/nova/latest/user/metadata.html#config-drives) — upstream config drive format
+- [OVH API Reference](https://api.ovh.com/console/#/dedicated/server) — dedicated server API endpoints
+- Empirical testing on OVH bare metal servers as part of the [tf-xd-venture-talos01](https://github.com/xd-ventures/tf-xd-venture-talos01) project

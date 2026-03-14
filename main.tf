@@ -123,7 +123,7 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     # Base64-encoded: OVH base64-decodes before writing to the config drive ISO.
     # This avoids OVH's cleartext escape processing (\n → newline, \t → tab, etc.)
     # which corrupted YAML when templates contained literal escape sequences.
-    # See: docs/rca-2026-02-config-drive-yaml-parse.md
+    # See: docs/incidents/2026-02-config-drive-yaml-parse.md
     config_drive_user_data = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
 
     # Config drive metadata - minimal metadata to ensure config drive structure

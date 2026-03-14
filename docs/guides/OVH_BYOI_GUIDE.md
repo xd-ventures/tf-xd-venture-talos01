@@ -46,7 +46,7 @@ OVH BYOI creates an **OpenStack-format config drive** alongside the installed OS
 
 Talos must be configured with `platform=openstack` to read this config drive. Using `platform=nocloud` or `platform=metal` will **not** work — Talos will fail to find its machine configuration at boot.
 
-See [ADR-0001](adr/0001-platform-selection.md) for the platform decision and [ADR-0011](adr/0011-ovh-config-drive-format.md) for the detailed config drive investigation.
+See [ADR-0001](../adr/0001-platform-selection.md) for the platform decision and [ADR-0011](../adr/0011-ovh-config-drive-format.md) for the detailed config drive investigation.
 
 ## Bootloader
 
@@ -58,7 +58,7 @@ The EFI bootloader path must be set explicitly:
 efi_bootloader_path = "\\EFI\\BOOT\\BOOTX64.EFI"
 ```
 
-See [ADR-0002](adr/0002-bootloader-selection.md) for details.
+See [ADR-0002](../adr/0002-bootloader-selection.md) for details.
 
 ## OVH API Configuration
 
@@ -116,12 +116,12 @@ The `scripts/` directory contains OVH utility scripts for troubleshooting:
 
 | Script | Purpose |
 |--------|---------|
-| [`ovh-server-status.sh`](../scripts/ovh-server-status.sh) | Check server status via OVH API |
-| [`ovh-rescue-boot.sh`](../scripts/ovh-rescue-boot.sh) | Boot server into rescue mode |
-| [`ovh-normal-boot.sh`](../scripts/ovh-normal-boot.sh) | Restore normal boot mode |
-| [`ovh-ipmi-access.sh`](../scripts/ovh-ipmi-access.sh) | Access server via IPMI/iKVM |
-| [`ovh-wait-task.sh`](../scripts/ovh-wait-task.sh) | Wait for OVH API task completion |
-| [`inspect-config-drive.sh`](../scripts/inspect-config-drive.sh) | Inspect config drive format (rescue mode) |
+| [`ovh-server-status.sh`](../../scripts/ovh-server-status.sh) | Check server status via OVH API |
+| [`ovh-rescue-boot.sh`](../../scripts/ovh-rescue-boot.sh) | Boot server into rescue mode |
+| [`ovh-normal-boot.sh`](../../scripts/ovh-normal-boot.sh) | Restore normal boot mode |
+| [`ovh-ipmi-access.sh`](../../scripts/ovh-ipmi-access.sh) | Access server via IPMI/iKVM |
+| [`ovh-wait-task.sh`](../../scripts/ovh-wait-task.sh) | Wait for OVH API task completion |
+| [`inspect-config-drive.sh`](../../scripts/inspect-config-drive.sh) | Inspect config drive format (rescue mode) |
 
 ### Rescue Mode
 
@@ -142,8 +142,8 @@ mount /dev/nvme0n1p5 /mnt && ls /mnt  # Check config drive contents
 
 ## Related Documentation
 
-- [ADR-0001: Platform Selection](adr/0001-platform-selection.md) — why `platform=openstack`
-- [ADR-0002: Bootloader Selection](adr/0002-bootloader-selection.md) — why GRUB over UKI
-- [ADR-0011: OVH Config Drive Format](adr/0011-ovh-config-drive-format.md) — config drive investigation
+- [ADR-0001: Platform Selection](../adr/0001-platform-selection.md) — why `platform=openstack`
+- [ADR-0002: Bootloader Selection](../adr/0002-bootloader-selection.md) — why GRUB over UKI
+- [ADR-0011: OVH Config Drive Format](../adr/0011-ovh-config-drive-format.md) — config drive investigation
 - [OVH BYOI Documentation](https://help.ovhcloud.com/csm/en-dedicated-servers-bringyourownimage) — official OVH docs
 - [Talos Bare Metal Guide](https://www.talos.dev/v1.12/talos-guides/install/bare-metal-platforms/) — upstream Talos docs

@@ -227,8 +227,14 @@ The Talos node cannot resolve its own `*.ts.net` hostname via MagicDNS internall
 
 ## Prevention
 
-- [ ] **Switch to base64 encoding** in `main.tf`: `config_drive_user_data = base64encode(...)` — eliminates the root cause
-- [ ] **Fix the misleading comment** in `main.tf` (line 110) that says "OVH will base64 encode this automatically"
-- [ ] Add a CI check that renders all templates and validates the resulting YAML
-- [ ] Keep rescue mode procedures documented for future incidents
-- [ ] Document the cleartext escape behavior in project knowledge base (done in MEMORY.md)
+- [x] **Switch to base64 encoding** in `main.tf`: `config_drive_user_data = base64encode(...)` — eliminates the root cause
+- [x] **Fix the misleading comment** in `main.tf`
+- [x] Add a CI check that renders all templates and validates the resulting YAML (see `scripts/validate-templates.py`)
+- [x] Keep rescue mode procedures documented for future incidents (see [Disaster Recovery](../DISASTER_RECOVERY.md))
+- [x] Document the cleartext escape behavior in project knowledge base
+
+## Related Documents
+
+- [OVH BYOI Guide](../guides/OVH_BYOI_GUIDE.md) — deployment process overview
+- [OVH Config Drive Reference](../guides/OVH_CONFIG_DRIVE_REFERENCE.md) — config drive internals
+- [ADR-0011: OVH Config Drive Format](../adr/0011-ovh-config-drive-format.md) — format investigation
