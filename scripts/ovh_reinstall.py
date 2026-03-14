@@ -48,21 +48,33 @@ def main():
     print(f"  image_type: {image_type}")
     print(f"  image_url:  {image_url[:80]}...")
 
-    result = client.post(
-        f"/dedicated/server/{service_name}/reinstall",
-        operatingSystem="byoi_64",
-        customizations={
-            "hostname": hostname,
-            "imageURL": image_url,
-            "imageType": image_type,
-            "efiBootloaderPath": efi_path,
-            "configDriveUserData": user_data,
-            "configDriveMetadata": {
-                "instance-id": instance_id,
-                "local-hostname": hostname,
+    try:
+        result = client.post(
+            f"/dedicated/server/{service_name}/reinstall",
+            operatingSystem="byoi_64",
+            customizations={
+                "hostname": hostname,
+                "imageURL": image_url,
+                "imageType": image_type,
+                "efiBootloaderPath": efi_path,
+                "configDriveUserData": user_data,
+                "configDriveMetadata": {
+                    "instance-id": instance_id,
+                    "local-hostname": hostname,
+                },
             },
-        },
-    )
+        )
+    except ovh.exceptions.APIError as e:
+        status = getattr(e, "http_status", None) or getattr(e, "httpStatus", None)
+        error_text = getattr(e, "error", None) or getattr(e, "message", None) or str(e)
+        error_code = getattr(e, "code", None) or getattr(e, "errorCode", None)
+        print("ERROR: OVH API reinstall request failed:", file=sys.stderr)
+        if status is not None:
+            print(f"  HTTP status: {status}", file=sys.stderr)
+        if error_code is not None:
+            print(f"  Error code:  {error_code}", file=sys.stderr)
+        print(f"  Error text:  {error_text}", file=sys.stderr)
+        sys.exit(1)
 
     task_id = result.get("taskId") or result.get("id")
     if not task_id:
