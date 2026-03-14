@@ -114,8 +114,9 @@ If the server state is `ok`, it may be booted but network-isolated.
 
 If the [ovh-ikvm-mcp](https://github.com/xd-ventures/ovh-ikvm-mcp) server is running:
 
-```
-Ask Claude: "Take a screenshot of the server console using the iKVM MCP"
+```bash
+# Use the MCP get_screenshot tool with the server ID from list_servers
+# Or access the iKVM console directly via OVH Manager → IPMI → KVM
 ```
 
 ### Step 3: Request IPMI Console Access
@@ -143,11 +144,12 @@ ssh root@<server-public-ip>
 ### Step 5: Inspect in Rescue Mode
 
 ```bash
-# Check disk layout
+# Check disk layout — identify partitions before mounting
 lsblk
 fdisk -l
 
-# Mount Talos STATE partition
+# Mount Talos STATE partition (verify partition with lsblk/blkid first)
+# On this server: nvme0n1p5 is typically the STATE partition
 mount /dev/nvme0n1p5 /mnt
 
 # Inspect the stored config
@@ -235,9 +237,10 @@ ssh root@<server-public-ip>
 # Find and mount the config drive
 ./scripts/inspect-config-drive.sh
 
-# Or manually:
-blkid | grep -i cidata
-mount /dev/sdX /mnt/config
+# Or manually — find the config drive partition (labeled "config-2"):
+blkid | grep -i config-2
+# Mount the partition identified above (typically nvme0n1p5 or the last partition)
+mount /dev/nvme0n1p5 /mnt/config
 cat /mnt/config/openstack/latest/user_data
 ```
 
