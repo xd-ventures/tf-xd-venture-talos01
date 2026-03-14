@@ -97,6 +97,14 @@ def main():
                 continue
             print(f"ERROR: Task {task_id} not found after {elapsed}s", file=sys.stderr)
             sys.exit(1)
+        except ovh.exceptions.APIError as e:
+            # Transient API errors (network, 5xx) — retry unless timed out
+            print(f"[{elapsed}s] API error polling task: {e}", file=sys.stderr)
+            if elapsed > timeout:
+                print(f"ERROR: Timeout after {timeout}s", file=sys.stderr)
+                sys.exit(1)
+            time.sleep(15)
+            continue
 
         status = task.get("status", "unknown")
         comment = task.get("comment", "")
