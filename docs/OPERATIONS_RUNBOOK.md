@@ -124,7 +124,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 2. **Capture console screenshot via iKVM** (if MCP server running)
    ```
-   Ask Claude: "Take a screenshot of the server console using the ikvm MCP"
+   Ask Claude: "Take a screenshot of the server console using the iKVM MCP"
    ```
 
 3. **Request IPMI console access**
@@ -174,7 +174,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    tofu apply
    ```
 
-4. **If firewall is blocking and Tailscale is down** — you are locked out.
+4. **If the firewall is blocking and Tailscale is down** — you are locked out.
    Use iKVM/IPMI console or rescue mode to diagnose.
    See [ADR-0005](adr/0005-remote-access.md) for the access model.
 
