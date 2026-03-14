@@ -261,7 +261,7 @@ data "talos_client_configuration" "this" {
 # before bootstrap (the extension starts on boot, before etcd init).
 resource "talos_machine_bootstrap" "this" {
   depends_on = [
-    ovh_dedicated_server_reinstall_task.talos,
+    terraform_data.reinstall,
     data.tailscale_device.talos_node,
   ]
 

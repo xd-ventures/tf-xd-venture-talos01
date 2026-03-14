@@ -101,7 +101,7 @@ data "tailscale_device" "talos_node" {
   hostname = var.tailscale_hostname
   wait_for = "600s" # Wait up to 10 min for device to appear after reinstall + reboot
 
-  depends_on = [ovh_dedicated_server_reinstall_task.talos]
+  depends_on = [terraform_data.reinstall]
 }
 
 output "tailscale_device_id" {

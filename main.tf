@@ -99,54 +99,45 @@ resource "terraform_data" "reinstall_trigger" {
   ]
 }
 
-# Talos OS Installation Task
-# This will trigger a server reinstallation with Talos OS using BYOI
-resource "ovh_dedicated_server_reinstall_task" "talos" {
-  depends_on   = [terraform_data.tailscale_device_cleanup]
-  service_name = ovh_dedicated_server.talos01.service_name
-  os           = "byoi_64"
+# Talos OS Installation via OVH v2 API
+#
+# Uses terraform_data + local-exec instead of ovh_dedicated_server_reinstall_task
+# because the OVH provider v2.11.0 uses the v1 API endpoint which returns HTTP 500.
+# The v2 /dedicated/server/{sn}/reinstall endpoint works correctly.
+# See: https://github.com/xd-ventures/tf-xd-venture-talos01/issues/130
+resource "terraform_data" "reinstall" {
+  depends_on = [terraform_data.tailscale_device_cleanup]
 
-  customizations {
-    hostname = var.cluster_name
+  # Store inputs so they're visible in state and available for triggers
+  input = {
+    service_name = ovh_dedicated_server.talos01.service_name
+    hostname     = var.cluster_name
+    image_url    = local.image_url
+    image_type   = local.image_type
+    efi_path     = local.efi_bootloader_path_grub
+    instance_id  = "${var.cluster_name}-${terraform_data.reinstall_trigger.id}"
+  }
 
-    # Image URL - using openstack platform image for OVH BYOI
-    image_url = local.image_url
-
-    # Image type - must match the actual image format
-    image_type = local.image_type
-
-    # EFI bootloader path - for GRUB-based boot
-    # OVH requires backslashes for the path
-    efi_bootloader_path = local.efi_bootloader_path_grub
-
-    # Config drive user data - Talos expects raw YAML machine config
-    # Base64-encoded: OVH base64-decodes before writing to the config drive ISO.
-    # This avoids OVH's cleartext escape processing (\n → newline, \t → tab, etc.)
-    # which corrupted YAML when templates contained literal escape sequences.
-    # See: docs/rca-2026-02-config-drive-yaml-parse.md
-    config_drive_user_data = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
-
-    # Config drive metadata - minimal metadata to ensure config drive structure
-    # IMPORTANT: instance-id must change on every reinstall to force OVH to
-    # regenerate the config drive. A static instance-id causes OVH to reuse
-    # the old config drive even when config_drive_user_data has changed.
-    config_drive_metadata = {
-      instance-id    = "${var.cluster_name}-${terraform_data.reinstall_trigger.id}"
-      local-hostname = var.cluster_name
+  provisioner "local-exec" {
+    command = "python3 ${path.module}/scripts/ovh_reinstall.py"
+    environment = {
+      OVH_REINSTALL_SERVICE_NAME = ovh_dedicated_server.talos01.service_name
+      OVH_REINSTALL_HOSTNAME     = var.cluster_name
+      OVH_REINSTALL_IMAGE_URL    = local.image_url
+      OVH_REINSTALL_IMAGE_TYPE   = local.image_type
+      OVH_REINSTALL_EFI_PATH     = local.efi_bootloader_path_grub
+      # Base64-encoded: OVH base64-decodes before writing to the config drive ISO.
+      # This avoids OVH's cleartext escape processing (\n → newline, \t → tab, etc.)
+      # which corrupted YAML when templates contained literal escape sequences.
+      # See: docs/rca-2026-02-config-drive-yaml-parse.md
+      OVH_REINSTALL_USER_DATA = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
+      # instance-id must change on every reinstall to force OVH to regenerate the
+      # config drive. A static instance-id causes OVH to reuse the old config drive.
+      OVH_REINSTALL_INSTANCE_ID = "${var.cluster_name}-${terraform_data.reinstall_trigger.id}"
     }
   }
 
-  # CRITICAL: Force replacement when core config changes (via stable trigger)
-  # We use terraform_data.reinstall_trigger which tracks only STABLE values
-  # (excludes volatile Tailscale auth key to prevent unnecessary reinstalls)
   lifecycle {
-    # Ignore changes to config_drive_user_data - it contains the volatile Tailscale auth key
-    # which changes hourly. The key is only used once during initial setup (TS_AUTH_ONCE=true).
-    # Reinstalls should only be triggered by our STABLE trigger, not by key rotation.
-    ignore_changes = [
-      customizations[0].config_drive_user_data,
-    ]
-
     # Trigger reinstall when stable config changes
     replace_triggered_by = [
       terraform_data.reinstall_trigger,

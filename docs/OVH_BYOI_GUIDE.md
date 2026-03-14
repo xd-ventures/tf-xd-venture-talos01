@@ -12,7 +12,7 @@ OVH BYOI allows installing a custom OS image on a dedicated server via the OVH A
 4. A **config drive** partition is created with your user data
 5. The server reboots into the installed OS
 
-This project automates steps 1-5 via the `ovh_dedicated_server_reinstall_task` resource in `main.tf`.
+This project automates steps 1-5 via the `terraform_data.reinstall` resource in `main.tf`, which calls the OVH v2 reinstall API through `scripts/ovh_reinstall.py`.
 
 ## Image Format
 

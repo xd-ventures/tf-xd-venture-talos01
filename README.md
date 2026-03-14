@@ -188,10 +188,10 @@ $ tofu apply
   tailscale_tailnet_key.talos[0]: Creating...
   talos_image_factory_schematic.this: Creation complete after 2s [id=ce4c98...]
   tailscale_tailnet_key.talos[0]: Creation complete after 1s
-  ovh_dedicated_server_reinstall_task.talos: Creating...
-  ovh_dedicated_server_reinstall_task.talos: Still creating... [5m0s elapsed]
-  ovh_dedicated_server_reinstall_task.talos: Still creating... [10m0s elapsed]
-  ovh_dedicated_server_reinstall_task.talos: Creation complete after 12m34s
+  terraform_data.reinstall: Creating...
+  terraform_data.reinstall: Still creating... [5m0s elapsed]
+  terraform_data.reinstall: Still creating... [10m0s elapsed]
+  terraform_data.reinstall: Creation complete after 12m34s
   talos_machine_bootstrap.this: Creating...
   talos_machine_bootstrap.this: Still creating... [1m0s elapsed]
   talos_machine_bootstrap.this: Creation complete after 1m42s
