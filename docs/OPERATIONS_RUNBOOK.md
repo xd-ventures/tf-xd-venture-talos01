@@ -122,9 +122,10 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    ./scripts/ovh-server-status.sh
    ```
 
-2. **Capture console screenshot via iKVM** (if MCP server running)
-   ```
-   Ask Claude: "Take a screenshot of the server console using the iKVM MCP"
+2. **Capture console screenshot via iKVM** (if [ovh-ikvm-mcp](https://github.com/xd-ventures/ovh-ikvm-mcp) is running)
+   ```bash
+   # Use the MCP get_screenshot tool with the server ID from list_servers
+   # Or access the iKVM console directly via OVH Manager → IPMI → KVM
    ```
 
 3. **Request IPMI console access**
@@ -153,7 +154,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 7. **If unrecoverable, reinstall from scratch**
    ```bash
-   tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'
+   tofu apply -replace='terraform_data.reinstall'
    ```
 
 ### Tailscale Connection Lost (Server Running)
@@ -192,11 +193,11 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    ```
 
 3. **Replace the failed disk** (requires physical intervention or OVH support ticket).
-   After replacement:
+   After replacement, identify devices using `zpool status -v tank` output and `lsblk`:
    ```bash
-   # Partition the new disk
-   # Replace the faulted vdev
-   talosctl run /usr/local/sbin/zpool replace tank <old-dev> <new-dev>
+   # Example: /dev/nvme0n1p3 failed, replaced disk appears as /dev/nvme1n1
+   # Partition the new disk, then replace the faulted vdev
+   talosctl run /usr/local/sbin/zpool replace tank /dev/nvme0n1p3 /dev/nvme1n1p3
    ```
 
 4. **Monitor resilver progress**
@@ -266,7 +267,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 | Boot to rescue mode | `./scripts/ovh-rescue-boot.sh` |
 | Return to normal boot | `./scripts/ovh-normal-boot.sh` |
 | Request IPMI access | `./scripts/ovh-ipmi-access.sh` |
-| Force reinstall | `tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'` |
+| Force reinstall | `tofu apply -replace='terraform_data.reinstall'` |
 | Validate config | `tofu validate && tflint` |
 | Run all pre-commit checks | `pre-commit run --all-files` |
 
