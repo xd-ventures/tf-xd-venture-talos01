@@ -228,4 +228,4 @@ for any Jobs that use `nsenter` or `hostPID`.
 
 - [ADR Index](adr/README.md) - Architecture decisions
 - [Testing Strategy](TESTING_STRATEGY.md) - Validation approach
-- [OVH BYOI Guide](OVH_BYOI_GUIDE.md) - Installation specifics
+- [OVH BYOI Guide](guides/OVH_BYOI_GUIDE.md) - Installation specifics

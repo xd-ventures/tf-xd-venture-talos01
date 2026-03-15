@@ -295,7 +295,11 @@ Once created, the pool is automatically imported on every boot by the `ext-zpool
 ├── docs/
 │   ├── ARCHITECTURE.md     # Detailed architecture
 │   ├── TESTING_STRATEGY.md # Validation procedures
-│   ├── OVH_BYOI_GUIDE.md   # OVH installation specifics
+│   ├── guides/
+│   │   ├── OVH_BYOI_GUIDE.md             # OVH installation specifics
+│   │   └── OVH_CONFIG_DRIVE_REFERENCE.md  # Config drive internals
+│   ├── incidents/
+│   │   └── 2026-02-config-drive-yaml-parse.md  # RCA
 │   └── adr/                # Architecture Decision Records
 └── scripts/
     ├── ovh-server-status.sh  # Check server status
