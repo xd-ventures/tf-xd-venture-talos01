@@ -154,7 +154,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 7. **If unrecoverable, reinstall from scratch**
    ```bash
-   tofu apply -replace='terraform_data.reinstall'
+   tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'
    ```
 
 ### Tailscale Connection Lost (Server Running)
@@ -267,7 +267,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 | Boot to rescue mode | `./scripts/ovh-rescue-boot.sh` |
 | Return to normal boot | `./scripts/ovh-normal-boot.sh` |
 | Request IPMI access | `./scripts/ovh-ipmi-access.sh` |
-| Force reinstall | `tofu apply -replace='terraform_data.reinstall'` |
+| Force reinstall | `tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'` |
 | Validate config | `tofu validate && tflint` |
 | Run all pre-commit checks | `pre-commit run --all-files` |
 
