@@ -44,7 +44,7 @@ jobs:
           tofu_wrapper: false
 
       - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@4cb9feea73331a35b422df102992a03a44a3bb33 # v6
+        uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93 # v6
 
       - name: Cache OpenTofu providers
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
