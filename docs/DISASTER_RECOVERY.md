@@ -2,68 +2,61 @@
 
 Step-by-step recovery procedures for each failure mode in the Talos cluster.
 
-## Scenario 1: OVH Provider Broken (API Returns 500)
+## Scenario 1: OVH Reinstall Fails
 
-The OVH Terraform provider's `ovh_dedicated_server_reinstall_task` uses a v1 API
-endpoint that may return HTTP 500. The v2 API works correctly.
+The `ovh_dedicated_server_reinstall_task` resource may fail due to OVH API
+transient errors, timeouts, or infrastructure issues on OVH's side.
 
-### Recovery via v2 API Script
+### Symptoms
 
-The project includes `scripts/ovh_reinstall.py` which calls the v2 endpoint directly.
-Under normal operation, `tofu apply` invokes this script automatically via `terraform_data.reinstall`.
+- `tofu apply` fails during the reinstall task with an OVH API error
+- The OVH task shows status `error` or `cancelled` in the OVH Manager
 
-If you need to reinstall manually outside of Terraform:
+### Recovery
 
-```bash
-# Set OVH API credentials
-export OVH_ENDPOINT="ovh-eu"
-export OVH_APPLICATION_KEY="your-app-key"
-export OVH_APPLICATION_SECRET="your-app-secret"
-export OVH_CONSUMER_KEY="your-consumer-key"
+1. **Check the OVH task status** — the reinstall may have partially completed:
+   ```bash
+   ./scripts/ovh-server-status.sh
+   ```
 
-# Set reinstall parameters
-export OVH_REINSTALL_SERVICE_NAME="nsXXXXXX.ip-XX-XX-XX.eu"  # from: tofu output server_id
-export OVH_REINSTALL_HOSTNAME="talos-cluster"
-export OVH_REINSTALL_IMAGE_URL="$(tofu output -raw talos_image_url)"
-export OVH_REINSTALL_IMAGE_TYPE="qcow2"
-export OVH_REINSTALL_EFI_PATH="\\EFI\\BOOT\\BOOTX64.EFI"
-export OVH_REINSTALL_USER_DATA="$(tofu output -raw talos_machine_config)"
-export OVH_REINSTALL_INSTANCE_ID="$(uuidgen)"
+2. **Retry via Terraform** — transient errors often resolve on retry:
+   ```bash
+   tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'
+   ```
 
-python3 scripts/ovh_reinstall.py
-```
+3. **If retries fail, reinstall manually via the OVH Python SDK**:
+   ```python
+   import ovh
+   client = ovh.Client()  # reads OVH_* env vars
 
-### Recovery via Direct API Call (Python)
+   result = client.post(
+       f'/dedicated/server/{service_name}/reinstall',
+       operatingSystem='byoi_64',
+       customizations={
+           'hostname': 'talos-cluster',
+           'imageURL': '<talos-image-url>',
+           'imageType': 'qcow2',
+           'efiBootloaderPath': '\\EFI\\BOOT\\BOOTX64.EFI',
+           'configDriveUserData': '<base64-encoded-machine-config>',
+           'configDriveMetadata': {
+               'instance-id': '<unique-id>',
+               'local-hostname': 'talos-cluster',
+           },
+       }
+   )
+   task_id = result['taskId']
+   ```
 
-If the script is unavailable, use the OVH Python SDK directly:
+   Then monitor the task:
+   ```bash
+   ./scripts/ovh-wait-task.sh <task_id>
+   ```
 
-```python
-import ovh
-client = ovh.Client()
-
-result = client.post(
-    f'/dedicated/server/{service_name}/reinstall',
-    operatingSystem='byoi_64',
-    customizations={
-        'hostname': 'talos-cluster',
-        'imageURL': '<talos-image-url>',
-        'imageType': 'qcow2',
-        'efiBootloaderPath': '\\EFI\\BOOT\\BOOTX64.EFI',
-        'configDriveUserData': '<base64-encoded-machine-config>',
-        'configDriveMetadata': {
-            'instance-id': '<unique-id>',
-            'local-hostname': 'talos-cluster',
-        },
-    }
-)
-task_id = result['taskId']
-```
-
-Then monitor the task:
-
-```bash
-./scripts/ovh-wait-task.sh <task_id>
-```
+4. **After manual reinstall, reconcile state**:
+   ```bash
+   tofu state rm ovh_dedicated_server_reinstall_task.talos
+   tofu apply
+   ```
 
 ---
 
@@ -179,7 +172,7 @@ task ran but Terraform crashed before recording it).
 tofu state list
 
 # Check specific resource
-tofu state show terraform_data.reinstall
+tofu state show ovh_dedicated_server_reinstall_task.talos
 ```
 
 ### Remove Stale Resources
@@ -194,7 +187,7 @@ tofu state pull > state-backup.json
 If a resource exists in state but not in reality:
 
 ```bash
-tofu state rm terraform_data.reinstall
+tofu state rm ovh_dedicated_server_reinstall_task.talos
 ```
 
 ### Targeted Apply
@@ -202,7 +195,7 @@ tofu state rm terraform_data.reinstall
 After cleaning up state, re-apply only the affected resources:
 
 ```bash
-tofu apply -target=terraform_data.reinstall
+tofu apply -target=ovh_dedicated_server_reinstall_task.talos
 ```
 
 ### Full State Reconciliation
@@ -255,7 +248,7 @@ If the config is corrupted, the only fix is to reinstall:
 
 ```bash
 ./scripts/ovh-normal-boot.sh
-tofu apply -replace='terraform_data.reinstall'
+tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'
 ```
 
 ### Prevention
@@ -289,7 +282,7 @@ End-to-end procedure to recover from a completely non-functional state.
    ```bash
    tofu state list
    # Remove any resources that are stuck
-   tofu state rm terraform_data.reinstall
+   tofu state rm ovh_dedicated_server_reinstall_task.talos
    ```
 
 3. **Clean up stale Tailscale devices**
