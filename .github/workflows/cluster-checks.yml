@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Tailscale
         if: vars.TAILSCALE_ENABLED == 'true'
-        uses: tailscale/github-action@e380dc70ca7bfce1d5ee6d1fdf22512f7a0a26e1 # v3
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
