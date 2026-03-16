@@ -90,16 +90,14 @@ def _extract_string(body: str, key: str) -> str | None:
 
 
 def _extract_version(body: str, variables: dict) -> str | None:
-    """Extract version — either literal or var.xxx reference."""
-    literal = _extract_string(body, "version")
-    if literal and not literal.startswith("var."):
-        return literal
-
+    """Extract version — either literal string or var.xxx reference."""
+    # Try unquoted variable reference: version = var.argocd_chart_version
     m = re.search(r"version\s*=\s*var\.(\w+)", body)
     if m:
         return variables.get(m.group(1))
 
-    return literal
+    # Try literal string: version = "9.4.11"
+    return _extract_string(body, "version")
 
 
 def _extract_variable_defaults(tf_dir: str) -> dict:
