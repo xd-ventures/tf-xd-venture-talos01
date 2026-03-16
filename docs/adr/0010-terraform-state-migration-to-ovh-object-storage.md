@@ -143,13 +143,13 @@ Proceed with migration using the following approach:
    - Navigate to: Public Cloud > Object Storage > Create Container
    - Region: GRA (Gravelines) - same region as infrastructure
    - Container type: Standard (S3-compatible)
-   - Name: `xd-venture-terraform-state`
+   - Name: `my-terraform-state`
 
 2. **Enable versioning:**
    ```bash
    # Using AWS CLI with OVH endpoint
    aws s3api put-bucket-versioning \
-     --bucket xd-venture-terraform-state \
+     --bucket my-terraform-state \
      --versioning-configuration Status=Enabled \
      --endpoint-url https://s3.gra.io.cloud.ovh.net
    ```
@@ -157,7 +157,7 @@ Proceed with migration using the following approach:
 3. **Enable server-side encryption (optional but recommended):**
    ```bash
    aws s3api put-bucket-encryption \
-     --bucket xd-venture-terraform-state \
+     --bucket my-terraform-state \
      --server-side-encryption-configuration '{
        "Rules": [{
          "ApplyServerSideEncryptionByDefault": {
@@ -192,7 +192,7 @@ Proceed with migration using the following approach:
    ```hcl
    terraform {
      backend "s3" {
-       bucket = "xd-venture-terraform-state"
+       bucket = "my-terraform-state"
        key    = "talos-cluster/terraform.tfstate"
        region = "gra"
 
@@ -230,7 +230,7 @@ Proceed with migration using the following approach:
 1. **Verify remote state:**
    ```bash
    # List objects in bucket
-   aws s3 ls s3://xd-venture-terraform-state/talos-cluster/ \
+   aws s3 ls s3://my-terraform-state/talos-cluster/ \
      --endpoint-url https://s3.gra.io.cloud.ovh.net
    ```
 
@@ -248,7 +248,7 @@ Proceed with migration using the following approach:
 4. **Verify versioning works:**
    ```bash
    aws s3api list-object-versions \
-     --bucket xd-venture-terraform-state \
+     --bucket my-terraform-state \
      --prefix talos-cluster/terraform.tfstate \
      --endpoint-url https://s3.gra.io.cloud.ovh.net
    ```
@@ -298,13 +298,13 @@ tofu plan
 ```bash
 # List versions
 aws s3api list-object-versions \
-  --bucket xd-venture-terraform-state \
+  --bucket my-terraform-state \
   --prefix talos-cluster/terraform.tfstate \
   --endpoint-url https://s3.gra.io.cloud.ovh.net
 
 # Download specific version
 aws s3api get-object \
-  --bucket xd-venture-terraform-state \
+  --bucket my-terraform-state \
   --key talos-cluster/terraform.tfstate \
   --version-id <version-id> \
   terraform.tfstate.recovered \
@@ -354,7 +354,7 @@ Since OVH Object Storage does not support native locking, implement these proces
    - Not enforced, but provides visibility:
    ```bash
    echo "$(whoami)@$(date)" | aws s3 cp - \
-     s3://xd-venture-terraform-state/talos-cluster/.lock \
+     s3://my-terraform-state/talos-cluster/.lock \
      --endpoint-url https://s3.gra.io.cloud.ovh.net
    ```
 

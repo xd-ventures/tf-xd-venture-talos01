@@ -18,10 +18,10 @@ When deploying Talos clusters with Tailscale for secure access, Terraform needs 
 ### Problem Encountered
 
 During a server reinstall:
-1. Old device (`talos-xd-venture`) remained in Tailscale as offline
-2. New registration created `talos-xd-venture-1` with a different IP
-3. `terraform.tfvars` contained stale IP `100.125.126.73`
-4. Firewall apply failed: "dial tcp 100.125.126.73:50000: i/o timeout"
+1. Old device (`talos-cluster`) remained in Tailscale as offline
+2. New registration created `talos-cluster-1` with a different IP
+3. `terraform.tfvars` contained stale IP `100.x.y.z`
+4. Firewall apply failed: "dial tcp 100.x.y.z:50000: i/o timeout"
 
 ### Root Cause
 
