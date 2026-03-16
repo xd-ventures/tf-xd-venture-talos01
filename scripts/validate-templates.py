@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Validate .tftpl template files produce valid multi-document YAML.
 
 Renders Terraform template variables (${...}) with dummy values, then parses

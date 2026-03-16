@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Shodan Network Monitoring
 #
 # Registers the server's public IP with Shodan Monitor to get alerts

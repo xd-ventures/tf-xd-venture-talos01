@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # OVH Server Status Check
 #
 # Usage: ./ovh-server-status.sh [service_name]

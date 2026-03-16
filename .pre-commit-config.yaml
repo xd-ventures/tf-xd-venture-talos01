@@ -46,9 +46,17 @@ repos:
       - id: shellcheck
         args: ['-x']
 
-  # Template YAML validation
+  # Template YAML validation + License header compliance
   - repo: local
     hooks:
+      - id: license-eye
+        name: License header check (SPDX)
+        entry: license-eye header check
+        language: golang
+        additional_dependencies: ['github.com/apache/skywalking-eyes/cmd/license-eye@v0.6.0']
+        types_or: [python, bash, text]
+        files: '\.(tf|py|sh|tftpl|yml|yaml)$|^Makefile$'
+        pass_filenames: false
       - id: validate-templates
         name: Validate rendered template YAML
         entry: python3 scripts/validate-templates.py

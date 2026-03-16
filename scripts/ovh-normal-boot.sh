@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Restore OVH server to normal boot mode
 #
 # Usage: ./ovh-normal-boot.sh [service_name]

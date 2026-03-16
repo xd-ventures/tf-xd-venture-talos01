@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Cluster validation checks against the live production cluster.
 #
 # Intentionally NOT triggered on pull_request — these tests hit real

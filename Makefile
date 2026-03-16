@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 .PHONY: init validate plan apply deploy test test-smoke test-config test-storage test-security fmt lint setup kubeconfig talosconfig status clean help
 
 help: ## Show this help

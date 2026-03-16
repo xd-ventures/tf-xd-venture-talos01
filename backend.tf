@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # S3-Compatible Remote State Backend
 #
 # This backend uses any S3-compatible object storage (OVH, AWS, MinIO, etc.).

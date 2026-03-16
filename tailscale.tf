@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Tailscale Provider Configuration
 #
 # Authentication: OAuth Client (RECOMMENDED)

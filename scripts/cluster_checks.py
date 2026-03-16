@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Cluster validation checks using TAP (Test Anything Protocol).
 
 Runs post-deploy validation against a live Talos Kubernetes cluster.

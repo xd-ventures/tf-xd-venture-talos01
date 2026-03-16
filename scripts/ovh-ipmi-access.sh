@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Request OVH IPMI/KVM console access
 #
 # Usage: ./ovh-ipmi-access.sh [service_name]
