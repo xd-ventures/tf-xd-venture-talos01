@@ -5,8 +5,8 @@
 """Delete stale Tailscale devices matching a hostname before reinstall.
 
 On reinstall, Tailscale registers a new device. If the old device still exists,
-Tailscale appends a "-1" suffix to the hostname (e.g., "talos-xd-venture" →
-"talos-xd-venture-1"), which breaks data.tailscale_device hostname lookups.
+Tailscale appends a "-1" suffix to the hostname (e.g., "my-hostname" →
+"my-hostname-1"), which breaks data.tailscale_device hostname lookups.
 
 This script deletes any existing devices whose hostname matches exactly or has
 a numeric suffix (hostname-1, hostname-2, etc.) so the new device registers

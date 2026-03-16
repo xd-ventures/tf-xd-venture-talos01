@@ -43,7 +43,7 @@ provider "tailscale" {
 # was removed because it silently re-read the same consumed key. See issue #129.
 # Clean up stale Tailscale devices before reinstall.
 # On reinstall, Tailscale registers a new device. If the old entry still exists,
-# Tailscale appends a "-1" suffix (e.g., "talos-xd-venture" → "talos-xd-venture-1"),
+# Tailscale appends a "-1" suffix (e.g., "my-hostname" → "my-hostname-1"),
 # which breaks data.tailscale_device hostname lookup — it finds the STALE device
 # with the wrong IP instead of the new one.
 #

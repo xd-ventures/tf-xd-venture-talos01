@@ -51,7 +51,7 @@ Use OVH Object Storage as S3-compatible backend.
 # backend.tf
 terraform {
   backend "s3" {
-    bucket = "tf-state-xd-ventures"
+    bucket = "my-terraform-state"
     key    = "talos01/terraform.tfstate"
     region = "gra"
 
