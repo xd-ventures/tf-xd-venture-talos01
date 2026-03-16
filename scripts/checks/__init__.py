@@ -202,19 +202,13 @@ class CheckContext:
 
 def _tofu_outputs() -> dict:
     """Query all tofu outputs as JSON."""
-    tofu = _resolve_binary("tofu")
     try:
-        result = subprocess.run(
-            [tofu, "output", "-json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _safe_run([_resolve_binary("tofu"), "output", "-json"], timeout=30)
         if result.returncode != 0:
             return {}
         raw = json.loads(result.stdout)
         return {k: v.get("value") for k, v in raw.items()}
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
+    except json.JSONDecodeError:
         return {}
 
 
