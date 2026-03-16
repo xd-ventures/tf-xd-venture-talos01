@@ -204,7 +204,12 @@ def _check_job(ctx: CheckContext, tap: TAPProducer, job_name: str, namespace: st
         "-o", "jsonpath={.status.succeeded}",
     )
     succeeded = result.stdout.strip()
-    if succeeded == "1":
+    try:
+        succeeded_count = int(succeeded) if succeeded else 0
+    except ValueError:
+        succeeded_count = 0
+
+    if succeeded_count > 0:
         tap.ok(description)
     elif result.returncode != 0 and "NotFound" in result.stderr:
         tap.ok(f"{description} (cleaned up by TTL)")
