@@ -34,7 +34,7 @@ permissions:
 jobs:
   cluster-checks:
     name: Cluster Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production
 
@@ -49,7 +49,10 @@ jobs:
 
       - name: Install talosctl
         run: |
-          curl -sL "https://talos.dev/install" | sh
+          curl -sLO "https://github.com/siderolabs/talos/releases/download/${{ vars.CHECK_TALOS_VERSION }}/talosctl-linux-amd64"
+          chmod +x talosctl-linux-amd64
+          sudo mv talosctl-linux-amd64 /usr/local/bin/talosctl
+          talosctl version --client --short
 
       - name: Install Tailscale
         if: vars.TAILSCALE_ENABLED == 'true'
@@ -83,7 +86,9 @@ jobs:
           fi
 
       - name: Run cluster checks
-        run: python3 scripts/cluster_checks.py --suite "${{ steps.suite.outputs.name }}"
+        id: checks
+        run: |
+          python3 scripts/cluster_checks.py --suite "${{ steps.suite.outputs.name }}" | tee /tmp/tap-output.txt
         env:
           CHECK_ENDPOINT: ${{ vars.CHECK_ENDPOINT }}
           CHECK_NODE: ${{ vars.CHECK_NODE }}
@@ -103,11 +108,35 @@ jobs:
       - name: Job Summary
         if: always()
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
-          ## Cluster Checks — ${{ steps.suite.outputs.name }}
+          PASS=$(grep -c '^ok ' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          FAIL=$(grep -c '^not ok ' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          SKIP=$(grep -c '# SKIP' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          TOTAL=$((PASS + FAIL))
 
-          Suite: `${{ steps.suite.outputs.name }}`
-          Trigger: `${{ github.event_name }}`
+          if [ "$FAIL" -gt 0 ]; then
+            STATUS=":x: $FAIL failed"
+          else
+            STATUS=":white_check_mark: all passed"
+          fi
 
-          See the step output above for TAP results.
-          EOF
+          {
+            echo "## Cluster Checks — ${{ steps.suite.outputs.name }}"
+            echo ""
+            echo "**$STATUS** | $PASS passed | $FAIL failed | $SKIP skipped | $TOTAL total"
+            echo ""
+            echo "| # | Status | Test |"
+            echo "|---|--------|------|"
+            grep -E '^(ok|not ok) ' /tmp/tap-output.txt | while IFS= read -r line; do
+              if echo "$line" | grep -q '# SKIP'; then
+                echo "| | :fast_forward: SKIP | $(echo "$line" | sed 's/^not ok [0-9]* - //;s/^ok [0-9]* - //') |"
+              elif echo "$line" | grep -q '^not ok'; then
+                echo "| | :x: FAIL | $(echo "$line" | sed 's/^not ok [0-9]* - //') |"
+              else
+                echo "| | :white_check_mark: PASS | $(echo "$line" | sed 's/^ok [0-9]* - //') |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f talosconfig kubeconfig
