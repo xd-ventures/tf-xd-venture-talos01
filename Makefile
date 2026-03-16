@@ -1,4 +1,4 @@
-.PHONY: init validate plan apply fmt lint setup kubeconfig talosconfig status clean help
+.PHONY: init validate plan apply deploy test test-smoke test-config test-storage test-security fmt lint setup kubeconfig talosconfig status clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -15,6 +15,23 @@ plan: ## Show execution plan
 
 apply: ## Apply infrastructure changes
 	tofu apply
+
+deploy: apply kubeconfig talosconfig test ## Apply and run validation checks
+
+test: ## Run all cluster validation checks (TAP output)
+	python3 scripts/cluster_checks.py --suite all
+
+test-smoke: ## Run smoke tests (Talos API reachability)
+	python3 scripts/cluster_checks.py --suite smoke
+
+test-config: ## Run config validation (extensions, manifests, pods)
+	python3 scripts/cluster_checks.py --suite config
+
+test-storage: ## Run storage checks (ZFS pool, PV write)
+	python3 scripts/cluster_checks.py --suite storage
+
+test-security: ## Run security checks (firewall port scan)
+	python3 scripts/cluster_checks.py --suite security
 
 fmt: ## Format all OpenTofu files
 	tofu fmt -recursive

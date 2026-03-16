@@ -1,0 +1,142 @@
+# Cluster validation checks against the live production cluster.
+#
+# Intentionally NOT triggered on pull_request — these tests hit real
+# infrastructure and require secrets (talosconfig, kubeconfig, Tailscale
+# OAuth) that are not available to fork PRs. Use workflow_dispatch for
+# on-demand runs and the daily cron for continuous monitoring.
+name: Cluster Checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smoke
+          - config
+          - storage
+          - security
+  schedule:
+    # Daily smoke test at 06:00 UTC
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: cluster-checks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cluster-checks:
+    name: Cluster Validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Install talosctl
+        run: |
+          curl -sLO "https://github.com/siderolabs/talos/releases/download/${{ vars.CHECK_TALOS_VERSION }}/talosctl-linux-amd64"
+          chmod +x talosctl-linux-amd64
+          sudo mv talosctl-linux-amd64 /usr/local/bin/talosctl
+          talosctl version --client --short
+
+      - name: Install Tailscale
+        if: vars.TAILSCALE_ENABLED == 'true'
+        uses: tailscale/github-action@e380dc70ca7bfce1d5ee6d1fdf22512f7a0a26e1 # v3
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Write talosconfig
+        run: |
+          echo "$TALOSCONFIG_RAW" > talosconfig
+          chmod 600 talosconfig
+        env:
+          TALOSCONFIG_RAW: ${{ secrets.TALOSCONFIG }}
+
+      - name: Write kubeconfig
+        run: |
+          echo "$KUBECONFIG_RAW" > kubeconfig
+          chmod 600 kubeconfig
+        env:
+          KUBECONFIG_RAW: ${{ secrets.KUBECONFIG }}
+
+      - name: Determine suite
+        id: suite
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "name=smoke" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ inputs.suite || 'all' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run cluster checks
+        id: checks
+        run: |
+          python3 scripts/cluster_checks.py --suite "${{ steps.suite.outputs.name }}" | tee /tmp/tap-output.txt
+        env:
+          CHECK_ENDPOINT: ${{ vars.CHECK_ENDPOINT }}
+          CHECK_NODE: ${{ vars.CHECK_NODE }}
+          CHECK_TALOSCONFIG: talosconfig
+          CHECK_KUBECONFIG: kubeconfig
+          CHECK_TALOS_VERSION: ${{ vars.CHECK_TALOS_VERSION }}
+          CHECK_CLUSTER_NAME: ${{ vars.CHECK_CLUSTER_NAME }}
+          CHECK_CLUSTER_ENDPOINT: ${{ vars.CHECK_CLUSTER_ENDPOINT }}
+          CHECK_TAILSCALE_ENABLED: ${{ vars.TAILSCALE_ENABLED }}
+          CHECK_FIREWALL_ENABLED: ${{ vars.FIREWALL_ENABLED }}
+          CHECK_ZFS_POOL_ENABLED: ${{ vars.ZFS_POOL_ENABLED }}
+          CHECK_ZFS_POOL_NAME: ${{ vars.ZFS_POOL_NAME }}
+          CHECK_ARGOCD_ENABLED: ${{ vars.ARGOCD_ENABLED }}
+          CHECK_PUBLIC_IP: ${{ vars.CHECK_PUBLIC_IP }}
+          CHECK_TAILSCALE_IP: ${{ vars.CHECK_TAILSCALE_IP }}
+
+      - name: Job Summary
+        if: always()
+        run: |
+          PASS=$(grep -c '^ok ' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          FAIL=$(grep -c '^not ok ' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          SKIP=$(grep -c '# SKIP' /tmp/tap-output.txt 2>/dev/null || echo 0)
+          TOTAL=$((PASS + FAIL))
+
+          if [ "$FAIL" -gt 0 ]; then
+            STATUS=":x: $FAIL failed"
+          else
+            STATUS=":white_check_mark: all passed"
+          fi
+
+          {
+            echo "## Cluster Checks — ${{ steps.suite.outputs.name }}"
+            echo ""
+            echo "**$STATUS** | $PASS passed | $FAIL failed | $SKIP skipped | $TOTAL total"
+            echo ""
+            echo "| # | Status | Test |"
+            echo "|---|--------|------|"
+            grep -E '^(ok|not ok) ' /tmp/tap-output.txt | while IFS= read -r line; do
+              if echo "$line" | grep -q '# SKIP'; then
+                echo "| | :fast_forward: SKIP | $(echo "$line" | sed 's/^not ok [0-9]* - //;s/^ok [0-9]* - //') |"
+              elif echo "$line" | grep -q '^not ok'; then
+                echo "| | :x: FAIL | $(echo "$line" | sed 's/^not ok [0-9]* - //') |"
+              else
+                echo "| | :white_check_mark: PASS | $(echo "$line" | sed 's/^ok [0-9]* - //') |"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f talosconfig kubeconfig
