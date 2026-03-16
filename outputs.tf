@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright xd-ventures contributors
+# Copyright Maciej Sawicki
 
 # Cluster Health Status
 output "cluster_health_status" {

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright xd-ventures contributors
+# Copyright Maciej Sawicki
 
 # S3-Compatible Remote State Backend
 #

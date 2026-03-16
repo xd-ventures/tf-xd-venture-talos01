@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-# Copyright xd-ventures contributors
+# Copyright Maciej Sawicki
 
 """Delete stale Tailscale devices matching a hostname before reinstall.
 

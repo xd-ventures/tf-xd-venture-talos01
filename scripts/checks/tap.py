@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright xd-ventures contributors
+# Copyright Maciej Sawicki
 
 """Minimal TAP (Test Anything Protocol) v13 producer.
 
