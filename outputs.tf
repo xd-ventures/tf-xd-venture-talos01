@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Cluster Health Status
 output "cluster_health_status" {
   description = "Cluster health check status (only available when Tailscale is disabled)"

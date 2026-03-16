@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Cluster validation checks — shared context and utilities."""
 
 import json

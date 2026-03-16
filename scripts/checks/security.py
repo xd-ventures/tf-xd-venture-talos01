@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Firewall and security verification.
 
 Validates that the Talos firewall rules are effective: public IP ports

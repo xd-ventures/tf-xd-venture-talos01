@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Wait for OVH task to complete
 #
 # Usage: ./ovh-wait-task.sh <task_id> [service_name] [timeout_seconds]

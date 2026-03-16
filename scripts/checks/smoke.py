@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Post-reinstall smoke tests.
 
 Validates that the Talos node is alive and responsive after OVH reinstall.

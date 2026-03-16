@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """Post-bootstrap config validation.
 
 Validates that the cluster state matches the intended configuration

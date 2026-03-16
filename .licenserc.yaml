@@ -1,0 +1,47 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    content: |
+      SPDX-License-Identifier: Apache-2.0
+      Copyright xd-ventures contributors
+
+  language:
+    tftpl:
+      extensions:
+        - ".tftpl"
+      comment_style:
+        line: "#"
+
+  paths-ignore:
+    - 'LICENSE'
+    - 'NOTICE'
+    - '.gitignore'
+    - '.gitleaks.toml'
+    - '.tflint.hcl'
+    - '.terraform.lock.hcl'
+    - '.pre-commit-config.yaml'
+    - '.licenserc.yaml'
+    - '.mcp.json'
+    - '.env'
+    - '.env.example'
+    - '.claude/**'
+    - '.cursor/**'
+    - 'renovate.json'
+    - 'requirements.txt'
+    - '**/*.md'
+    - '**/*.json'
+    - '**/*.png'
+    - '**/*.example'
+    - '**/*.tfvars'
+    - '**/*.tfvars.example'
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/PULL_REQUEST_TEMPLATE.md'
+    - 'docs/**'
+    - 'kubeconfig'
+    - 'talosconfig'
+    - 'terraform.tfstate*'
+    # .yaml.tftpl compound extension not supported by license-eye;
+    # headers are added manually to these files
+    - 'templates/*.yaml.tftpl'
+
+  comment: on-failure

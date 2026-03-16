@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # ArgoCD Installation and Configuration
 #
 # This file automates the ArgoCD Getting Started guide:

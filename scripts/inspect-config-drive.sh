@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Script to inspect OVH config drive format on rescue mode
 # Run this after SSHing into rescue mode
 

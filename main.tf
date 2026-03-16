@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # OVH Bare Metal Server Configuration
 #
 # Deploys Talos OS on an OVH dedicated server using BYOI (Bring Your Own Image).

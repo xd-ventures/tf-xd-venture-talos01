@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Talos Firewall Configuration
 #
 # Bakes NetworkDefaultActionConfig + NetworkRuleConfig into the config drive

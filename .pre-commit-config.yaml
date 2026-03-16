@@ -46,6 +46,13 @@ repos:
       - id: shellcheck
         args: ['-x']
 
+  # License header compliance (SPDX)
+  - repo: https://github.com/apache/skywalking-eyes
+    rev: v0.6.0
+    hooks:
+      - id: license-eye
+        args: [header, fix]
+
   # Template YAML validation
   - repo: local
     hooks:

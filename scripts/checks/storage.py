@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 """ZFS storage verification.
 
 Validates ZFS pool health and persistent volume functionality.

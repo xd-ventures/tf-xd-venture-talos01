@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright xd-ventures contributors
+
 # Boot OVH server into rescue mode
 #
 # Usage: ./ovh-rescue-boot.sh [service_name]
