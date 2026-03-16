@@ -1,0 +1,107 @@
+name: Cluster Checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smoke
+          - config
+          - storage
+          - security
+  schedule:
+    # Daily smoke test at 06:00 UTC
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: cluster-checks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cluster-checks:
+    name: Cluster Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Install talosctl
+        run: |
+          curl -sL "https://talos.dev/install" | sh
+
+      - name: Install Tailscale
+        if: vars.TAILSCALE_ENABLED == 'true'
+        uses: tailscale/github-action@e380dc70ca7bfce1d5ee6d1fdf22512f7a0a26e1 # v3
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Write talosconfig
+        run: |
+          echo "$TALOSCONFIG_RAW" > talosconfig
+          chmod 600 talosconfig
+        env:
+          TALOSCONFIG_RAW: ${{ secrets.TALOSCONFIG }}
+
+      - name: Write kubeconfig
+        run: |
+          echo "$KUBECONFIG_RAW" > kubeconfig
+          chmod 600 kubeconfig
+        env:
+          KUBECONFIG_RAW: ${{ secrets.KUBECONFIG }}
+
+      - name: Determine suite
+        id: suite
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "name=smoke" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ inputs.suite || 'all' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run cluster checks
+        run: python3 scripts/cluster_checks.py --suite "${{ steps.suite.outputs.name }}"
+        env:
+          CHECK_ENDPOINT: ${{ vars.CHECK_ENDPOINT }}
+          CHECK_NODE: ${{ vars.CHECK_NODE }}
+          CHECK_TALOSCONFIG: talosconfig
+          CHECK_KUBECONFIG: kubeconfig
+          CHECK_TALOS_VERSION: ${{ vars.CHECK_TALOS_VERSION }}
+          CHECK_CLUSTER_NAME: ${{ vars.CHECK_CLUSTER_NAME }}
+          CHECK_CLUSTER_ENDPOINT: ${{ vars.CHECK_CLUSTER_ENDPOINT }}
+          CHECK_TAILSCALE_ENABLED: ${{ vars.TAILSCALE_ENABLED }}
+          CHECK_FIREWALL_ENABLED: ${{ vars.FIREWALL_ENABLED }}
+          CHECK_ZFS_POOL_ENABLED: ${{ vars.ZFS_POOL_ENABLED }}
+          CHECK_ZFS_POOL_NAME: ${{ vars.ZFS_POOL_NAME }}
+          CHECK_ARGOCD_ENABLED: ${{ vars.ARGOCD_ENABLED }}
+          CHECK_PUBLIC_IP: ${{ vars.CHECK_PUBLIC_IP }}
+          CHECK_TAILSCALE_IP: ${{ vars.CHECK_TAILSCALE_IP }}
+
+      - name: Job Summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ## Cluster Checks — ${{ steps.suite.outputs.name }}
+
+          Suite: `${{ steps.suite.outputs.name }}`
+          Trigger: `${{ github.event_name }}`
+
+          See the step output above for TAP results.
+          EOF
