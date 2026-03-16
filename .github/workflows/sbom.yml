@@ -1,0 +1,293 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# Generate SBOMs for the full supply chain: Python deps, Helm chart images,
+# and inline manifest images. Stores as artifacts, submits to GitHub Dependency
+# Graph, and attaches to releases.
+name: SBOM Generation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.tf'
+      - 'templates/**'
+      - 'requirements*.txt'
+      - 'scripts/extract_helm_releases.py'
+      - '.github/workflows/sbom.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sbom:
+    name: Generate SBOMs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4
+        with:
+          version: 'v3.17.x'
+
+      - name: Setup Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy --version
+
+      - name: Create output directory
+        run: mkdir -p sbom-output
+
+      # --- Python SBOM ---
+      - name: Python SBOM
+        run: |
+          trivy fs requirements-lock.txt \
+            --scanners vuln,license \
+            --format cyclonedx \
+            --output sbom-output/python.cdx.json \
+            --list-all-pkgs
+
+      # --- Extract all image references ---
+      - name: Extract Helm releases and inline images
+        id: extract
+        run: |
+          python3 scripts/extract_helm_releases.py . > sbom-output/inventory.json
+          cat sbom-output/inventory.json
+
+          HELM_COUNT=$(python3 -c "import json; print(len(json.load(open('sbom-output/inventory.json'))['helm_releases']))")
+          INLINE_COUNT=$(python3 -c "import json; print(len(json.load(open('sbom-output/inventory.json'))['inline_images']))")
+          echo "helm_count=$HELM_COUNT" >> "$GITHUB_OUTPUT"
+          echo "inline_count=$INLINE_COUNT" >> "$GITHUB_OUTPUT"
+
+      # --- Helm chart image SBOMs ---
+      - name: Helm chart image SBOMs
+        if: steps.extract.outputs.helm_count != '0'
+        run: |
+          set -euo pipefail
+
+          python3 << 'PYEOF'
+          import json, subprocess, re, sys
+
+          data = json.load(open("sbom-output/inventory.json"))
+          all_images = []
+
+          for rel in data["helm_releases"]:
+              name = rel["name"]
+              repo = rel["repository"]
+              chart = rel["chart"]
+              version = rel["version"]
+              print(f"\n=== {name}: {chart} v{version} ===")
+
+              repo_alias = name.replace("-", "_")
+              subprocess.run(["helm", "repo", "add", repo_alias, repo],
+                             capture_output=True, check=True)
+
+              result = subprocess.run(
+                  ["helm", "template", name, f"{repo_alias}/{chart}", "--version", version],
+                  capture_output=True, text=True,
+              )
+              if result.returncode != 0:
+                  print(f"WARNING: helm template failed: {result.stderr}", file=sys.stderr)
+                  continue
+
+              images = set(re.findall(r"image:\s*[\"']?([^\s\"']+)[\"']?", result.stdout))
+              for img in sorted(images):
+                  print(f"  {img}")
+                  all_images.append({"release": name, "image": img})
+
+          with open("sbom-output/helm-images.json", "w") as f:
+              json.dump(all_images, f, indent=2)
+          print(f"\nTotal: {len(all_images)} images from Helm charts")
+          PYEOF
+
+          # Scan each unique image
+          python3 -c "
+          import json
+          data = json.load(open('sbom-output/helm-images.json'))
+          seen = set()
+          for entry in data:
+              if entry['image'] not in seen:
+                  seen.add(entry['image'])
+                  print(entry['image'])
+          " | while IFS= read -r IMAGE; do
+            SAFE=$(echo "$IMAGE" | tr '/:@' '___')
+            echo "Scanning: $IMAGE"
+            trivy image "$IMAGE" \
+              --format cyclonedx \
+              --output "sbom-output/helm-${SAFE}.cdx.json" \
+              --list-all-pkgs \
+              --quiet 2>/dev/null || echo "WARNING: scan failed for $IMAGE"
+          done
+
+      # --- Inline manifest image SBOMs ---
+      - name: Inline manifest image SBOMs
+        if: steps.extract.outputs.inline_count != '0'
+        run: |
+          set -euo pipefail
+          python3 -c "
+          import json
+          data = json.load(open('sbom-output/inventory.json'))
+          for entry in data['inline_images']:
+              print(entry['image'])
+          " | while IFS= read -r IMAGE; do
+            SAFE=$(echo "$IMAGE" | tr '/:@' '___')
+            echo "Scanning: $IMAGE"
+            trivy image "$IMAGE" \
+              --format cyclonedx \
+              --output "sbom-output/inline-${SAFE}.cdx.json" \
+              --list-all-pkgs \
+              --quiet 2>/dev/null || echo "WARNING: scan failed for $IMAGE"
+          done
+
+      # --- Terraform provider inventory ---
+      - name: Generate provider inventory
+        run: |
+          python3 -c "
+          import re, json
+          with open('.terraform.lock.hcl') as f:
+              content = f.read()
+          providers = []
+          for match in re.finditer(r'provider \"(.+?)\" \{\s*\n\s*version\s*=\s*\"(.+?)\"', content):
+              source, version = match.groups()
+              providers.append({'source': source, 'name': source.split('/')[-1], 'version': version})
+          with open('sbom-output/providers.json', 'w') as f:
+              json.dump({'providers': providers, 'count': len(providers)}, f, indent=2)
+          for p in providers:
+              print(f\"  {p['source']} @ {p['version']}\")
+          "
+
+      # --- Upload artifacts ---
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom-output/
+          retention-days: 90
+
+      # --- Submit to Dependency Graph ---
+      - name: Submit to Dependency Graph
+        if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 << 'PYEOF'
+          import json, glob, os, datetime
+
+          packages = []
+          for sbom_file in sorted(glob.glob("sbom-output/*.cdx.json")):
+              try:
+                  sbom = json.load(open(sbom_file))
+              except json.JSONDecodeError:
+                  continue
+              for component in sbom.get("components", []):
+                  purl = component.get("purl")
+                  if purl:
+                      packages.append({
+                          "package_url": purl,
+                          "relationship": "direct",
+                          "scope": "runtime",
+                      })
+
+          seen = set()
+          unique = []
+          for p in packages:
+              if p["package_url"] not in seen:
+                  seen.add(p["package_url"])
+                  unique.append(p)
+
+          if not unique:
+              print("No packages to submit.")
+              raise SystemExit(0)
+
+          payload = {
+              "version": 0,
+              "sha": os.environ["GITHUB_SHA"],
+              "ref": os.environ["GITHUB_REF"],
+              "job": {"correlator": "sbom-generation", "id": os.environ["GITHUB_RUN_ID"]},
+              "detector": {"name": "trivy-sbom", "version": "1.0.0", "url": "https://github.com/aquasecurity/trivy"},
+              "scanned": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "manifests": {
+                  "supply-chain": {
+                      "name": "supply-chain",
+                      "resolved": {p["package_url"]: p for p in unique},
+                  }
+              },
+          }
+
+          with open("dependency-submission.json", "w") as f:
+              json.dump(payload, f, indent=2)
+          print(f"Submitting {len(unique)} packages to Dependency Graph")
+          PYEOF
+
+          if [ -f dependency-submission.json ]; then
+            gh api repos/${{ github.repository }}/dependency-graph/snapshots \
+              --input dependency-submission.json
+          fi
+
+      # --- Attach to release ---
+      - name: Attach SBOMs to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar czf sbom-bundle.tar.gz -C sbom-output .
+          gh release upload "${{ github.event.release.tag_name }}" \
+            sbom-bundle.tar.gz --clobber
+
+      # --- Job Summary ---
+      - name: Job Summary
+        if: always()
+        run: |
+          {
+            echo "## SBOM Generation"
+            echo ""
+
+            # Count components per SBOM
+            echo "| Artifact | Components |"
+            echo "|----------|------------|"
+            for f in sbom-output/*.cdx.json; do
+              [ -f "$f" ] || continue
+              NAME=$(basename "$f")
+              COUNT=$(python3 -c "import json; print(len(json.load(open('$f')).get('components',[])))" 2>/dev/null || echo "?")
+              echo "| $NAME | $COUNT |"
+            done
+
+            # Provider inventory
+            if [ -f sbom-output/providers.json ]; then
+              echo ""
+              echo "### Terraform Providers"
+              echo ""
+              python3 -c "
+          import json
+          data = json.load(open('sbom-output/providers.json'))
+          for p in data['providers']:
+              print(f\"- {p['source']} @ {p['version']}\")
+          "
+            fi
+
+            # Helm chart images
+            if [ -f sbom-output/helm-images.json ]; then
+              echo ""
+              echo "### Helm Chart Images"
+              echo ""
+              python3 -c "
+          import json
+          data = json.load(open('sbom-output/helm-images.json'))
+          for entry in data:
+              print(f\"- \`{entry['image']}\` ({entry['release']})\")
+          "
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

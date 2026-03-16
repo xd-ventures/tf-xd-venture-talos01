@@ -27,7 +27,7 @@ header:
     - '.claude/**'
     - '.cursor/**'
     - 'renovate.json'
-    - 'requirements.txt'
+    - 'requirements*.txt'
     - '**/*.md'
     - '**/*.json'
     - '**/*.png'
