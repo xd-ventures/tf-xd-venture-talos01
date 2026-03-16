@@ -119,17 +119,17 @@ def _check_prerequisites(ctx: CheckContext, suite: str) -> bool:
 
 def _run_suite(suite: str, ctx: CheckContext, tap: TAPProducer) -> None:
     """Import and run a test suite."""
-    if suite == "smoke":
-        from checks.smoke import run
-    elif suite == "config":
-        from checks.config import run
-    elif suite == "storage":
-        from checks.storage import run
-    elif suite == "security":
-        from checks.security import run
-    else:
-        return
-    run(ctx, tap)
+    from checks import smoke, config, storage, security
+
+    dispatch = {
+        "smoke": smoke.run,
+        "config": config.run,
+        "storage": storage.run,
+        "security": security.run,
+    }
+    fn = dispatch.get(suite)
+    if fn:
+        fn(ctx, tap)
 
 
 if __name__ == "__main__":

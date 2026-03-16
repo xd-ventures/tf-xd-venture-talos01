@@ -1,3 +1,9 @@
+# Cluster validation checks against the live production cluster.
+#
+# Intentionally NOT triggered on pull_request — these tests hit real
+# infrastructure and require secrets (talosconfig, kubeconfig, Tailscale
+# OAuth) that are not available to fork PRs. Use workflow_dispatch for
+# on-demand runs and the daily cron for continuous monitoring.
 name: Cluster Checks
 
 on:

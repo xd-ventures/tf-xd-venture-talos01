@@ -166,6 +166,16 @@ def check_port_closed(host: str, port: int, timeout: float = 5) -> bool:
         return True
 
 
+def _safe_run(cmd: list[str], timeout: int, **kwargs) -> subprocess.CompletedProcess:
+    """Run a subprocess, handling timeout and missing binary gracefully."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, returncode=124, stdout="", stderr=f"command timed out after {timeout}s")
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(cmd, returncode=127, stdout="", stderr=f"command not found: {cmd[0]}")
+
+
 def run_talosctl(ctx: CheckContext, *args: str, timeout: int = 30) -> subprocess.CompletedProcess:
     """Run talosctl with the correct config, endpoint, and node."""
     cmd = [
@@ -175,13 +185,10 @@ def run_talosctl(ctx: CheckContext, *args: str, timeout: int = 30) -> subprocess
         "--nodes", ctx.node,
         *args,
     ]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return _safe_run(cmd, timeout)
 
 
 def run_kubectl(ctx: CheckContext, *args: str, timeout: int = 30, stdin: str | None = None) -> subprocess.CompletedProcess:
     """Run kubectl with the correct kubeconfig."""
     cmd = [ctx.kubectl, "--kubeconfig", ctx.kubeconfig, *args]
-    return subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout,
-        input=stdin,
-    )
+    return _safe_run(cmd, timeout, input=stdin)
