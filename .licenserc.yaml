@@ -42,6 +42,6 @@ header:
     - 'terraform.tfstate*'
     # .yaml.tftpl compound extension not supported by license-eye;
     # headers are added manually to these files
-    - 'templates/*.yaml.tftpl'
+    - '**/*.yaml.tftpl'
 
   comment: on-failure
