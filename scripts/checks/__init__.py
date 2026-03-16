@@ -185,7 +185,7 @@ class CheckContext:
 
         zfs_info = _get(outputs, "zfs_pool_info", None)
         if isinstance(zfs_info, dict):
-            ctx.zfs_pool_enabled = zfs_info.get("status") == "enabled"
+            ctx.zfs_pool_enabled = "enabled" in zfs_info.get("status", "").lower()
             ctx.zfs_pool_name = _validate_pool_name(
                 zfs_info.get("pool_name", ctx.zfs_pool_name), "zfs_pool_name"
             )
