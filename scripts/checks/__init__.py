@@ -283,11 +283,15 @@ def _safe_run(cmd: list[str], timeout: int, **kwargs) -> subprocess.CompletedPro
 
     Inputs are pre-validated by the calling functions — binary paths are
     resolved to absolute paths, hostnames/IPs are checked against allowlists,
-    and file paths are validated for safe characters.
+    and file paths are validated for safe characters. See _validate_host(),
+    _validate_path(), _validate_version(), _resolve_binary().
     """
     try:
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, **kwargs)
     except subprocess.TimeoutExpired:
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
         return subprocess.CompletedProcess(cmd, returncode=124, stdout="", stderr=f"command timed out after {timeout}s")
     except FileNotFoundError:
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
         return subprocess.CompletedProcess(cmd, returncode=127, stdout="", stderr=f"command not found: {cmd[0]}")
