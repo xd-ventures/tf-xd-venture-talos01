@@ -19,14 +19,15 @@ on:
     types: [published]
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: read-all
 
 jobs:
   sbom:
     name: Generate SBOMs
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -44,7 +45,10 @@ jobs:
 
       - name: Setup Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          TRIVY_VERSION="0.62.1"
+          curl -sfL -o trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          sudo dpkg -i trivy.deb
+          rm trivy.deb
           trivy --version
 
       - name: Create output directory
