@@ -7,20 +7,31 @@
     ":rebaseStalePrs"
   ],
   "semanticCommitType": "chore",
-  "labels": ["dependencies"],
-  "schedule": ["before 9am on Monday"],
+  "labels": [
+    "dependencies"
+  ],
+  "schedule": [
+    "before 9am on Monday"
+  ],
   "timezone": "Europe/Warsaw",
   "prHourlyLimit": 3,
   "prConcurrentLimit": 5,
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["dependencies", "security"],
-    "schedule": ["at any time"]
+    "labels": [
+      "dependencies",
+      "security"
+    ],
+    "schedule": [
+      "at any time"
+    ]
   },
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["variables\\.tf$"],
+      "managerFilePatterns": [
+        "/variables\\.tf$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( registryUrl=(?<registryUrl>.*?))?\\n.*?default\\s*=\\s*\"(?<currentValue>.*?)\""
       ]
@@ -29,19 +40,25 @@
   "packageRules": [
     {
       "description": "Group all GitHub Actions updates",
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "groupName": "github-actions",
       "automerge": false
     },
     {
       "description": "Group all pre-commit hook updates",
-      "matchManagers": ["pre-commit"],
+      "matchManagers": [
+        "pre-commit"
+      ],
       "groupName": "pre-commit-hooks",
       "automerge": false
     },
     {
       "description": "Group Kubernetes ecosystem providers (stable, moderate risk)",
-      "matchManagers": ["terraform"],
+      "matchManagers": [
+        "terraform"
+      ],
       "matchPackageNames": [
         "hashicorp/kubernetes",
         "hashicorp/helm",
@@ -52,16 +69,26 @@
     },
     {
       "description": "Flag major updates for extra review",
-      "matchUpdateTypes": ["major"],
-      "labels": ["dependencies", "major-update"],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "labels": [
+        "dependencies",
+        "major-update"
+      ],
       "prBodyNotes": [
         "This is a **major version update**. Review changelog for breaking changes before merging."
       ]
     },
     {
       "description": "Delay adoption of pre-1.0 provider updates by 3 days",
-      "matchManagers": ["terraform"],
-      "matchPackageNames": ["siderolabs/talos", "tailscale/tailscale"],
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchPackageNames": [
+        "siderolabs/talos",
+        "tailscale/tailscale"
+      ],
       "minimumReleaseAge": "3 days"
     }
   ]
