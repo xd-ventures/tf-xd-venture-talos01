@@ -95,7 +95,7 @@ locals {
 
   # Use explicit endpoints/nodes if provided, otherwise use default API IP
   talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.default_api_ip]
-  talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.default_api_ip
+  talos_nodes = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.default_api_ip
   ]
 
   # Tailscale auth key — read directly from the key resource.
