@@ -90,10 +90,15 @@ locals {
     ":6443", ""
   )
 
-  # Use explicit endpoints/nodes if provided, otherwise use cluster IP
-  # These are used for talosctl config and health checks (not bootstrap)
-  talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.cluster_ip]
-  talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.cluster_ip]
+  # Use explicit endpoints/nodes if provided, otherwise:
+  # - Tailscale IP when firewall is enabled (public IP is blocked)
+  # - Public IP when firewall is disabled
+  talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [
+    var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+  ]
+  talos_nodes = length(var.talos_nodes) > 0 ? var.talos_nodes : [
+    var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+  ]
 
   # Tailscale auth key — read directly from the key resource.
   # The key is consumed once on boot (TS_AUTH_ONCE=true) and expires after 1h.

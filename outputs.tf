@@ -78,9 +78,8 @@ output "talos_machine_config" {
 
 output "talosconfig" {
   description = "Talos client configuration for talosctl - ready to use YAML file"
-  # NOTE: Using public IP because talosctl's gRPC resolver doesn't support Tailscale MagicDNS.
-  # When firewall is enabled, use: talosctl --endpoints $(dig +short <ts.net hostname>)
-  # Or use the talosctl_command from tailscale_access_info output.
+  # When firewall is enabled, endpoints use the Tailscale IP (public IP is blocked).
+  # When firewall is disabled, endpoints use the public IP.
   value     = data.talos_client_configuration.this.talos_config
   sensitive = true
 }
