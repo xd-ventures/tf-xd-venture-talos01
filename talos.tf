@@ -90,14 +90,12 @@ locals {
     ":6443", ""
   )
 
-  # Use explicit endpoints/nodes if provided, otherwise:
-  # - Tailscale IP when firewall is enabled (public IP is blocked)
-  # - Public IP when firewall is disabled
-  talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [
-    var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
-  ]
-  talos_nodes = length(var.talos_nodes) > 0 ? var.talos_nodes : [
-    var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+  # Default API IP: Tailscale when firewall is enabled (public IP blocked), public IP otherwise
+  default_api_ip = var.enable_firewall ? local.tailscale_endpoint_ip : local.cluster_ip
+
+  # Use explicit endpoints/nodes if provided, otherwise use default API IP
+  talos_endpoints = length(var.talos_endpoints) > 0 ? var.talos_endpoints : [local.default_api_ip]
+  talos_nodes     = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.default_api_ip
   ]
 
   # Tailscale auth key — read directly from the key resource.
