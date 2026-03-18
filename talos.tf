@@ -74,9 +74,10 @@ locals {
     ovh_dedicated_server.talos01.ip
   )
 
-  # Use ts.net hostname when Tailscale is enabled for secure access
-  # NOTE: The cluster node itself may not resolve ts.net hostnames (no MagicDNS internally)
-  # This means talosctl health may fail with DNS errors, but kubectl will work from your machine
+  # Use ts.net hostname when Tailscale is enabled for secure access.
+  # On-node DNS resolution is handled by extraHostEntries mapping to 127.0.0.1.
+  # KubePrism (enabled by default since Talos 1.6, port 7445) handles internal
+  # API traffic via localhost. See extra_host_entries_config_patch below.
   actual_cluster_endpoint = (
     local.tailscale_enabled
     ? "https://${local.tailscale_ts_net_hostname}:6443"
@@ -126,6 +127,36 @@ locals {
     cluster = {
       apiServer = {
         certSANs = [local.tailscale_ts_net_hostname]
+      }
+    }
+  }) : ""
+
+  # Static host entry: map ts.net hostname to localhost for on-node DNS resolution.
+  #
+  # The Tailscale extension runs in userspace networking mode and does NOT configure
+  # host DNS to use MagicDNS (100.100.100.100). The node's resolver (127.0.0.53)
+  # cannot resolve ts.net hostnames, causing persistent DNS errors in components
+  # that resolve the cluster endpoint URL directly (EndpointSlice controller, etc.).
+  #
+  # KubePrism (enabled by default since Talos 1.6, port 7445) handles most internal
+  # API traffic via localhost, but some components still resolve the endpoint URL.
+  # This host entry ensures they resolve to 127.0.0.1, which works because:
+  # 1. On CP nodes: kube-apiserver listens on 127.0.0.1:6443
+  # 2. Talos 1.6.3+ auto-injects 127.0.0.1 into API server cert SANs
+  # 3. Multi-node ready: workers use KubePrism (7445) for all API traffic,
+  #    so the host entry is only exercised on CP nodes where 6443 is local.
+  #
+  # See: https://github.com/siderolabs/talos/issues/10441
+  # See: https://docs.siderolabs.com/kubernetes-guides/advanced-guides/kubeprism
+  extra_host_entries_config_patch = local.tailscale_enabled ? yamlencode({
+    machine = {
+      network = {
+        extraHostEntries = [
+          {
+            ip      = "127.0.0.1"
+            aliases = [local.tailscale_ts_net_hostname]
+          }
+        ]
       }
     }
   }) : ""
@@ -206,6 +237,7 @@ locals {
     [
       local.tailscale_config_patch,
       local.certsans_config_patch,
+      local.extra_host_entries_config_patch,
       local.zfs_config_patch,
       local.cluster_config_patch,
       local.ephemeral_volume_config_patch,
