@@ -1,7 +1,12 @@
 # ADR-0012: Single-Node Deployment with Destructive Upgrade Path
 
+> **Note**: The destructive upgrade approach documented here is superseded by
+> [ADR-0013: Upgrade Lifecycle Architecture](0013-upgrade-lifecycle-architecture.md),
+> which introduces non-destructive upgrade paths. The single-node deployment
+> decision remains valid. See #209, #210, #211 for implementation.
+
 ## Status
-Accepted
+Accepted (upgrade path superseded by ADR-0013)
 
 ## Date
 2026-02-10
