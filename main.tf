@@ -94,11 +94,17 @@ resource "terraform_data" "reinstall_trigger" {
     var.service_network_cidr,
     var.tailscale_ipv4_cidr,
     var.tailscale_ipv6_cidr,
-    # Config patches baked into the config drive — changes require reinstall
-    # (inline manifests: Cilium install, ZFS pool setup, etc.)
-    sha256(local.cluster_config_patch),
+    # Machine-level config that requires reinstall to take effect
     sha256(local.zfs_config_patch),
     sha256(local.ephemeral_volume_config_patch),
+    sha256(local.extra_host_entries_config_patch),
+    # Structural cluster config (CNI selection, scheduling policy).
+    # NOTE: Inline manifest content (Cilium Job, ZFS Job) is deliberately
+    # NOT tracked here. Manifests run as Kubernetes Jobs after boot and
+    # can be updated via `talosctl apply-config` without a reinstall.
+    # Tracking them caused Renovate dependency bumps to trigger full
+    # server reinstalls unnecessarily. See issue #205.
+    var.zfs_pool_enabled,
   ]
 }
 
