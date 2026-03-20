@@ -99,6 +99,46 @@ gh issue create --title "feat: add dashboard" --body "Description..."
 git checkout -b feature/42-add-dashboard
 ```
 
+## Architecture Decision Records (ADRs)
+
+ADRs live in `docs/adr/` and document significant architectural decisions.
+
+### ADR Immutability
+
+ADRs are **append-only records** — never modify the original content. The only allowed change is adding a note at the top indicating the ADR is superseded:
+
+```markdown
+> **Note**: This ADR is superseded by [ADR-0015](0015-new-decision.md).
+> See also: #<ticket-number> for context.
+```
+
+### ADR-First Workflow
+
+When analysis of a change, issue, or task reveals the need for **multiple tickets** (indicating an architectural decision), follow this workflow:
+
+1. **Create an ADR ticket first** — before any implementation tickets
+2. **Create all related implementation tickets** — reference the ADR ticket in each
+3. **Work on the ADR** — spend time on deep topic research, code analysis, and exploring alternatives. Consult the infrastructure architect and/or open-source community consultant as needed.
+4. **Merge the ADR** — via PR with normal review process
+5. **Update existing tickets** — add references to the ADR, refine scope based on findings
+6. **Create new tickets / close invalid ones** — only for tickets related to this ADR
+7. **Implement** — work on the implementation tickets in order
+8. **After all ADR-related tickets are done** — update `docs/ARCHITECTURE.md` and `README.md` to reflect the new architecture
+
+### When to create an ADR
+
+- Choosing between competing approaches (e.g., reinstall vs in-place upgrade)
+- Introducing a new component or pattern (e.g., KubePrism for endpoint resolution)
+- Changing how a core system works (e.g., upgrade lifecycle)
+- Any decision that future contributors would ask "why did we do it this way?"
+
+### ADR format
+
+Follow the existing pattern in `docs/adr/`:
+- Sequential numbering: `0013-short-description.md`
+- Sections: Context, Decision, Consequences, Status
+- Reference related issues and PRs
+
 ## PR Review Comment Policy
 
 Every comment on a PR (from bots, reviewers, or maintainers) **must** receive a reply describing the action taken. No comment should go unanswered.
