@@ -50,7 +50,7 @@ jobs:
         uses: terraform-linters/setup-tflint@b480b8fcdaa6f2c577f8e4fa799e89e756bb7c93 # v6
 
       - name: Cache OpenTofu providers
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.terraform.d/plugin-cache
           key: tofu-providers-${{ hashFiles('.terraform.lock.hcl') }}
@@ -173,7 +173,7 @@ jobs:
       # Remove once confirmed working (see also: continue-on-error note).
       - name: Upload SARIF
         if: success() || failure()
-        uses: github/codeql-action/upload-sarif@b1bff81932f5cdfc8695c7752dcee935dcd061c8 # v4
+        uses: github/codeql-action/upload-sarif@c6f931105cb2c34c8f901cc885ba1e2e259cf745 # v4
         continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
