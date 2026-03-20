@@ -347,6 +347,29 @@ data "talos_cluster_health" "this" {
   skip_kubernetes_checks = true # Only check Talos services, not full Kubernetes stack
 }
 
+# Apply machine configuration to the running node.
+#
+# This is the primary mechanism for pushing config changes (inline manifests,
+# network config, host entries, certSANs, etc.) to a running cluster WITHOUT
+# triggering a reinstall. Changes that don't require a reboot are applied
+# immediately; changes that do (like firewall rules) are staged for next boot.
+#
+# See ADR-0013 for the upgrade lifecycle architecture.
+resource "talos_machine_configuration_apply" "controlplane" {
+  depends_on = [talos_machine_bootstrap.this]
+
+  client_configuration        = talos_machine_secrets.this.client_configuration
+  machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
+  node                        = local.default_api_ip
+  endpoint                    = local.default_api_ip
+
+  # auto: apply immediately when possible, reboot only if the change requires it.
+  # For .cluster changes (inline manifests): applied live, no reboot.
+  # For firewall rules (NetworkRuleConfig): staged for next reboot.
+  apply_mode = "auto"
+
+}
+
 # Extract kubeconfig for kubectl access
 resource "talos_cluster_kubeconfig" "this" {
   depends_on = [talos_machine_bootstrap.this]
