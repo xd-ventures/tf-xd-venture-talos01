@@ -39,16 +39,10 @@ jobs:
           results_format: sarif
           publish_results: true
 
+      # NOTE: The scorecard job must only contain `uses:` steps (no `run:`).
+      # This is a requirement of the OpenSSF Scorecard webapp for workflow verification.
+      # See: https://github.com/ossf/scorecard-action#workflow-restrictions
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@c6f931105cb2c34c8f901cc885ba1e2e259cf745 # v4
         with:
           sarif_file: scorecard-results.sarif
-
-      - name: Job Summary
-        if: always()
-        run: |
-          echo "## OpenSSF Scorecard" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Results published to [scorecard.dev](https://scorecard.dev/viewer/?uri=github.com/xd-ventures/tf-xd-venture-talos01)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "SARIF uploaded to GitHub Code Scanning." >> "$GITHUB_STEP_SUMMARY"
