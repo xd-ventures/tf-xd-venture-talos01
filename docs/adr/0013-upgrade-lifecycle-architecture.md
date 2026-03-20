@@ -30,7 +30,7 @@ The Talos ecosystem provides non-destructive upgrade mechanisms that the project
 | Machine config | Lost | Preserved | Updated |
 | Inline manifests | Lost | Preserved | Updated live (no reboot) |
 | Firewall rules | Lost | Preserved | Staged for reboot² |
-| Running pods | Lost | Drained, restart | Preserved (no-reboot) |
+| Running pods | Lost | Drained, restarted | Preserved (no-reboot) |
 | Tailscale identity | Lost³ | Preserved | Preserved |
 
 ¹ Requires `--stage` flag to avoid ZFS unmount failure ([siderolabs/talos#8800](https://github.com/siderolabs/talos/issues/8800))
@@ -88,6 +88,20 @@ resource "talos_machine_configuration_apply" "controlplane" {
 
 Add `upgrade_mode` variable (default: `"upgrade"`) and a `terraform_data` resource that runs `talosctl upgrade --stage --preserve` via `local-exec`.
 
+**Variable definition**:
+```hcl
+variable "upgrade_mode" {
+  description = "How to apply version/extension changes: 'reinstall' (full wipe) or 'upgrade' (in-place, preserves data)"
+  type    = string
+  default = "upgrade"
+
+  validation {
+    condition     = contains(["reinstall", "upgrade"], var.upgrade_mode)
+    error_message = "Must be 'reinstall' or 'upgrade'."
+  }
+}
+```
+
 **What it handles**: Talos version bumps, extension add/remove.
 
 **Key design decisions**:
@@ -116,7 +130,7 @@ This phase is deferred until multi-node is actually implemented.
 | Extension add/remove | `"upgrade"` (default) | New schematic → `talosctl upgrade` |
 | Inline manifest change (Renovate) | Either | `talos_machine_configuration_apply` (live, no reboot) |
 | Config change (network, host entries) | Either | `talos_machine_configuration_apply` (live, no reboot) |
-| Firewall rule change | `"upgrade"` + reboot | `talos_machine_configuration_apply` stages, manual reboot |
+| Firewall rule change | `"upgrade"` + reboot | `talos_machine_configuration_apply` stages the config; operator triggers reboot via `talosctl reboot` |
 | Disaster recovery (bricked node) | `"reinstall"` | OVH BYOI + bootstrap |
 
 ## Consequences
@@ -133,7 +147,7 @@ This phase is deferred until multi-node is actually implemented.
 
 - Two code paths (reinstall vs upgrade) increase complexity — more `count` conditionals, more resources
 - `talosctl upgrade` via `local-exec` is not as clean as a native Terraform resource would be
-- The operator must explicitly set `upgrade_mode = "reinstall"` for first deploy and DR — wrong default could fail
+- The operator must explicitly set `upgrade_mode = "reinstall"` for first deploy and DR — the wrong default could fail
 - State drift risk: if `talosctl upgrade` succeeds but Terraform crashes before recording it, manual state reconciliation is needed
 
 ### Risks
