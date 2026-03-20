@@ -47,7 +47,7 @@ jobs:
       - name: Setup Trivy
         run: |
           # renovate: datasource=github-releases depName=aquasecurity/trivy
-          TRIVY_VERSION="0.62.1"
+          TRIVY_VERSION="0.69.3"
           curl -sfL -o trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
           sudo dpkg -i trivy.deb
           rm trivy.deb
