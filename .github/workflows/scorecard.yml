@@ -43,6 +43,6 @@ jobs:
       # This is a requirement of the OpenSSF Scorecard webapp for workflow verification.
       # See: https://github.com/ossf/scorecard-action#workflow-restrictions
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
         with:
           sarif_file: scorecard-results.sarif
