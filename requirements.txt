@@ -1,2 +1,4 @@
-# Python dependencies for OVH management scripts (scripts/)
+# Python dependencies for management scripts (scripts/)
 ovh>=1.1.0
+# validate-templates.py (template YAML validation, also run by pre-commit/CI)
+pyyaml>=6.0

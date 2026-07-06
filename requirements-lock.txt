@@ -1,11 +1,12 @@
 # Frozen transitive dependencies for SBOM generation and vulnerability scanning.
-# Generated from requirements.txt (ovh>=1.1.0) via pip freeze.
+# Generated from requirements.txt (ovh>=1.1.0, pyyaml>=6.0) via pip freeze.
 # Renovate updates this file alongside requirements.txt.
 certifi==2026.6.17
 charset-normalizer==3.4.8
 idna==3.18
 oauthlib==3.3.1
 ovh==1.2.0
-requests==2.34.2
+PyYAML==6.0.3
 requests-oauthlib==2.0.0
+requests==2.34.2
 urllib3==2.7.0
