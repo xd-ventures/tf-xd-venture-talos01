@@ -52,7 +52,7 @@ Also out of scope:
 
 The following are known and tracked. You do not need to report these:
 
-- **Firewall disabled by default** — intentional for bootstrapping. Auto-enabling the firewall risks locking out the operator before Tailscale connectivity is verified (see [ADR-0009](docs/adr/0009-firewall-activation-strategy.md)). After deployment, verify Tailscale connectivity using `tofu output firewall_verification_commands`, then set `enable_firewall = true`. When the firewall is disabled, a `firewall_warning` output is displayed on every `tofu apply`.
+- **Firewall disabled by default** — intentional for bootstrapping: enabling the firewall before Tailscale connectivity is verified would lock the operator out, since with the firewall active the APIs are reachable via Tailscale only (recovery then requires iKVM console or rescue mode). After deployment, verify Tailscale access works (kubectl/talosctl against the ts.net endpoint), set `enable_firewall = true` and re-apply, then confirm with `tofu output firewall_verification_commands`. The staged activation flow is documented in `terraform.tfvars.example`. When the firewall is disabled, a `firewall_warning` output is displayed on every `tofu apply`.
 - **ArgoCD initial admin password in state** — ArgoCD generates an initial admin password stored as a Kubernetes secret. This value is read into Terraform state for convenience. Rotate the password immediately after first login:
   1. `argocd account update-password`
   2. `kubectl delete secret argocd-initial-admin-secret -n argocd`
