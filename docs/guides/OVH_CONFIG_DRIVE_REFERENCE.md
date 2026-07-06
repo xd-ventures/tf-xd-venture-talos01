@@ -98,7 +98,14 @@ The config drive is created **exactly once per provisioning event** — during t
 
 **There is no API endpoint to update config drive content post-provisioning.** The only way to change it is to reinstall the server, which destroys all data on disk. This is by design — the ISO 9660 filesystem is physically read-only, and even the VFAT variant (BYOLinux) is not designed to be modified in-place by OVH's infrastructure.
 
-When you reinstall the server, the old config drive partition is destroyed along with all other partitions during the disk-wipe step, and a fresh config drive is created with the new metadata. If you reinstall without specifying `configDriveUserData`, the `user_data` file simply won't exist in the new config drive — but OVH still creates the config drive with `meta_data.json` and `network_data.json` populated from the server's current configuration.
+When you reinstall the server, a fresh config drive is normally created with the new metadata. If you reinstall without specifying `configDriveUserData`, the `user_data` file simply won't exist in the new config drive — but OVH still creates the config drive with `meta_data.json` and `network_data.json` populated from the server's current configuration.
+
+> **Caveat observed in practice**: OVH regenerates the config drive based on the
+> supplied metadata. If the `instance-id` in `configDriveMetadata` is identical to the
+> previous install, OVH has been observed to **reuse the old config drive content even
+> when `configDriveUserData` changed**. This project therefore derives `instance-id`
+> from the reinstall trigger (`${cluster_name}-${trigger_id}` in `main.tf`) so every
+> reinstall gets a unique instance ID and a freshly written config drive.
 
 Cloud-init uses the `uuid` field as an instance ID to detect first boot vs. subsequent boots. For a custom OS, you should implement similar logic: read the UUID on first boot, cache it somewhere persistent, and skip re-initialization on subsequent boots when the UUID matches.
 

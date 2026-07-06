@@ -67,8 +67,12 @@ If a reinstall is needed and the key has already been consumed:
 
 ### Symptoms
 
-- `tofu plan` shows the key resource needs recreation
 - Precondition error: "Tailscale is enabled but auth key is empty"
+
+> **Note**: `tofu plan` will **not** show the key resource needing recreation — the
+> key sets `recreate_if_invalid = "never"` (tailscale.tf) precisely so that hourly
+> expiry does not churn plans (#129). An expired key only surfaces via the
+> precondition error or a failed device registration after reinstall.
 
 ### Recovery
 
@@ -137,15 +141,18 @@ ssh root@<server-public-ip>
 ### Step 5: Inspect in Rescue Mode
 
 ```bash
-# Check disk layout — identify partitions before mounting
+# Check disk layout — identify partitions BY LABEL, never by number
 lsblk
-fdisk -l
+blkid   # STATE = Talos state partition; config-2 = OVH config drive
 
-# Mount Talos STATE partition (verify partition with lsblk/blkid first)
-# On this server: nvme0n1p5 is typically the STATE partition
-mount /dev/nvme0n1p5 /mnt
+# Inspect the machine config delivered by OVH (config drive, label config-2 —
+# on this server it has typically been nvme0n1p5, but always verify with blkid)
+mount $(blkid -L config-2) /mnt
+cat /mnt/openstack/latest/user_data
+umount /mnt
 
-# Inspect the stored config
+# Inspect the config Talos persisted (STATE partition)
+mount $(blkid -L STATE) /mnt
 cat /mnt/config.yaml
 
 # Check for kernel panic logs
@@ -220,7 +227,7 @@ or an incompatible image.
 ### Symptoms
 
 - Server stuck at GRUB, kernel panic, or Talos fails to parse machine config
-- Console shows YAML parse errors (see [RCA](rca-2026-02-config-drive-yaml-parse.md))
+- Console shows YAML parse errors (see [RCA](incidents/2026-02-config-drive-yaml-parse.md))
 
 ### Diagnose via Console
 
@@ -237,10 +244,10 @@ ssh root@<server-public-ip>
 # Find and mount the config drive
 ./scripts/inspect-config-drive.sh
 
-# Or manually — find the config drive partition (labeled "config-2"):
+# Or manually — find and mount the config drive partition by label:
 blkid | grep -i config-2
-# Mount the partition identified above (typically nvme0n1p5 or the last partition)
-mount /dev/nvme0n1p5 /mnt/config
+mkdir -p /mnt/config
+mount $(blkid -L config-2) /mnt/config
 cat /mnt/config/openstack/latest/user_data
 ```
 
@@ -254,7 +261,7 @@ tofu apply -replace='ovh_dedicated_server_reinstall_task.talos'
 ### Prevention
 
 - Config drive user data is base64-encoded to prevent OVH escape processing
-  (see [RCA](rca-2026-02-config-drive-yaml-parse.md))
+  (see [RCA](incidents/2026-02-config-drive-yaml-parse.md))
 - Template validation runs in CI via `scripts/validate-templates.py`
 - Preconditions check for empty auth keys and image URLs before reinstall
 
@@ -314,10 +321,14 @@ End-to-end procedure to recover from a completely non-functional state.
    kubectl get pods -A
    ```
 
-8. **Verify ZFS pool** (if enabled)
+8. **Verify ZFS pool** (if enabled) — Talos has no shell, so run `zpool` from a
+   privileged debug pod in the host mount namespace:
    ```bash
    kubectl logs -n kube-system job/zfs-pool-setup
-   talosctl run /usr/local/sbin/zpool status
+
+   NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status
    ```
 
 9. **Restore data** from backups to the new ZFS pool.
@@ -335,7 +346,7 @@ OVH provides IPMI-based access for out-of-band management:
 | Rescue mode SSH | `./scripts/ovh-rescue-boot.sh` | Disk inspection needed |
 | Normal boot restore | `./scripts/ovh-normal-boot.sh` | After rescue diagnosis |
 
-## Talosctl Diagnostic Commands
+## Diagnostic Commands
 
 | Command | Purpose |
 |---------|---------|
@@ -345,11 +356,12 @@ OVH provides IPMI-based access for out-of-band management:
 | `talosctl dmesg` | Kernel messages |
 | `talosctl logs kubelet` | Kubelet logs |
 | `talosctl logs etcd` | etcd logs |
-| `talosctl run /usr/local/sbin/zpool status` | ZFS pool health |
+| `talosctl read /proc/modules` | Loaded kernel modules (ZFS extension check) |
+| `kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- nsenter -t 1 -m -- /usr/local/sbin/zpool status` | ZFS pool health (Talos has no shell — `talosctl` cannot run host binaries) |
 
 ## Related Documents
 
 - [Operations Runbook](OPERATIONS_RUNBOOK.md) — routine operational procedures
 - [Testing Strategy](TESTING_STRATEGY.md) — validation phases and debugging
 - [Architecture Overview](ARCHITECTURE.md) — failure modes table
-- [RCA: Config Drive YAML Parse](rca-2026-02-config-drive-yaml-parse.md) — root cause analysis of the config drive outage
+- [RCA: Config Drive YAML Parse](incidents/2026-02-config-drive-yaml-parse.md) — root cause analysis of the config drive outage
