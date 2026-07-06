@@ -257,6 +257,10 @@ data "talos_machine_configuration" "controlplane" {
   cluster_endpoint = local.actual_cluster_endpoint
   machine_secrets  = talos_machine_secrets.this.machine_secrets
   talos_version    = var.talos_version
+  # Pinned — the provider's floating default breaks when it advances past
+  # talos_version's supported range (issue #269). Kept OUT of the reinstall
+  # trigger: version changes roll out live via talos_machine_configuration_apply.
+  kubernetes_version = var.kubernetes_version
 
   # Apply config patches for Tailscale, firewall, and certSANs
   config_patches = local.config_patches
