@@ -272,9 +272,32 @@ data "talos_machine_configuration" "controlplane" {
       error_message = "Cluster endpoint still contains <server-ip> placeholder. The OVH server IP could not be resolved."
     }
 
+    # Feature-aware patch validation: assert each patch that should exist
+    # rendered non-empty, instead of a flat count — a count check rejects
+    # valid configurations with features disabled (issue #238), and compact()
+    # silently drops empty strings, which these checks are meant to catch.
     precondition {
-      condition     = length(local.config_patches) >= 3
-      error_message = "Expected at least 3 config patches (tailscale, zfs, cluster) but got ${length(local.config_patches)}. Check that required patches are not empty."
+      condition     = local.zfs_config_patch != "" && local.cluster_config_patch != ""
+      error_message = "A required config patch (zfs, cluster) rendered empty. Check the corresponding locals in talos.tf."
+    }
+
+    precondition {
+      condition = !local.tailscale_enabled || (
+        local.tailscale_config_patch != ""
+        && local.certsans_config_patch != ""
+        && local.extra_host_entries_config_patch != ""
+      )
+      error_message = "Tailscale is enabled but one of its config patches (tailscale, certSANs, extraHostEntries) rendered empty."
+    }
+
+    precondition {
+      condition     = !var.zfs_pool_enabled || local.ephemeral_volume_config_patch != ""
+      error_message = "zfs_pool_enabled is true but the EPHEMERAL volume config patch rendered empty."
+    }
+
+    precondition {
+      condition     = !var.enable_firewall || length(local.firewall_config_patches) > 0
+      error_message = "enable_firewall is true but no firewall config patches were generated."
     }
   }
 }
