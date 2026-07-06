@@ -17,9 +17,16 @@ import re
 import sys
 
 
-def extract_helm_releases(tf_dir: str = ".") -> list[dict]:
-    """Parse all .tf files and extract helm_release metadata."""
+def extract_helm_releases(tf_dir: str = ".") -> tuple[list[dict], list[dict]]:
+    """Parse all .tf files and extract helm_release metadata.
+
+    Returns (releases, skipped): releases that could not be fully resolved
+    (e.g. a version that is not a literal or a variable default) are reported
+    in `skipped` instead of being silently dropped — a dropped release means
+    silent SBOM under-reporting.
+    """
     releases = []
+    skipped = []
     variables = _extract_variable_defaults(tf_dir)
 
     for tf_file in sorted(glob.glob(f"{tf_dir}/**/*.tf", recursive=True)):
@@ -48,8 +55,23 @@ def extract_helm_releases(tf_dir: str = ".") -> list[dict]:
                     "version": version,
                     "source_file": tf_file,
                 })
+            else:
+                missing = [
+                    field
+                    for field, value in (
+                        ("chart", chart),
+                        ("repository", repository),
+                        ("version", version),
+                    )
+                    if not value
+                ]
+                skipped.append({
+                    "resource": resource_name,
+                    "source_file": tf_file,
+                    "unresolved_fields": missing,
+                })
 
-    return releases
+    return releases, skipped
 
 
 def extract_inline_images(tf_dir: str = ".") -> list[dict]:
@@ -130,10 +152,24 @@ def _resolve_interpolations(raw: str, variables: dict) -> str:
 if __name__ == "__main__":
     tf_dir = sys.argv[1] if len(sys.argv) > 1 else "."
 
+    helm_releases, skipped_helm_releases = extract_helm_releases(tf_dir)
+
     result = {
-        "helm_releases": extract_helm_releases(tf_dir),
+        "helm_releases": helm_releases,
+        "skipped_helm_releases": skipped_helm_releases,
         "inline_images": extract_inline_images(tf_dir),
     }
+
+    # Skipped releases mean the SBOM under-reports — make it loud, but on
+    # stderr so stdout stays valid JSON for the SBOM workflow.
+    for entry in skipped_helm_releases:
+        print(
+            f"WARNING: skipped helm_release \"{entry['resource']}\" in "
+            f"{entry['source_file']} — could not resolve: "
+            f"{', '.join(entry['unresolved_fields'])} "
+            f"(not a literal or variable default); it will be MISSING from the SBOM",
+            file=sys.stderr,
+        )
 
     json.dump(result, sys.stdout, indent=2)
     print()
