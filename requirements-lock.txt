@@ -3,7 +3,7 @@
 # Renovate updates this file alongside requirements.txt.
 certifi==2026.4.22
 charset-normalizer==3.4.8
-idna==3.15
+idna==3.18
 oauthlib==3.3.1
 ovh==1.2.0
 requests==2.34.2
