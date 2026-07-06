@@ -259,7 +259,7 @@ variable "argocd_chart_version" {
   description = "ArgoCD Helm chart version. See: https://github.com/argoproj/argo-helm/releases"
   type        = string
   # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-  default = "9.7.1"
+  default = "10.1.2"
 }
 
 variable "argocd_server_insecure" {
