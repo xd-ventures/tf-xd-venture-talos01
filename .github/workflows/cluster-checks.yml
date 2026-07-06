@@ -51,11 +51,16 @@ jobs:
           python-version: '3.14'
 
       - name: Install talosctl
+        # Version comes via env, NOT ${{ }} interpolation — expression values are
+        # rendered verbatim into the publicly visible step script; env values are
+        # not. Do not print the version either (public logs).
+        env:
+          TALOS_VERSION: ${{ vars.CHECK_TALOS_VERSION }}
         run: |
-          curl -sLO "https://github.com/siderolabs/talos/releases/download/${{ vars.CHECK_TALOS_VERSION }}/talosctl-linux-amd64"
+          curl -sLO "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64"
           chmod +x talosctl-linux-amd64
           sudo mv talosctl-linux-amd64 /usr/local/bin/talosctl
-          talosctl version --client --short
+          talosctl version --client --short > /dev/null  # verify binary runs
 
       - name: Install Tailscale
         if: vars.TAILSCALE_ENABLED == 'true'
@@ -91,8 +96,13 @@ jobs:
       - name: Run cluster checks
         id: checks
         run: |
+          # pipefail: without it the step exits with tee's 0 and a failing or
+          # crashing harness keeps the daily cron green forever
+          set -o pipefail
           python3 scripts/cluster_checks.py --suite "${{ steps.suite.outputs.name }}" | tee /tmp/tap-output.txt
         env:
+          # Run logs and the Job Summary are public — never disable redaction here
+          CHECK_REDACT: "true"
           CHECK_ENDPOINT: ${{ vars.CHECK_ENDPOINT }}
           CHECK_NODE: ${{ vars.CHECK_NODE }}
           CHECK_TALOSCONFIG: talosconfig
@@ -116,7 +126,9 @@ jobs:
           SKIP=$(grep -c '# SKIP' /tmp/tap-output.txt 2>/dev/null || echo 0)
           TOTAL=$((PASS + FAIL))
 
-          if [ "$FAIL" -gt 0 ]; then
+          if [ "$TOTAL" -eq 0 ]; then
+            STATUS=":x: harness produced no results (crash or misconfiguration)"
+          elif [ "$FAIL" -gt 0 ]; then
             STATUS=":x: $FAIL failed"
           else
             STATUS=":white_check_mark: all passed"

@@ -221,6 +221,18 @@ The same harness runs in CI: `.github/workflows/cluster-checks.yml` executes the
 suite daily (cron) against the production cluster and publishes a Job Summary, with
 `workflow_dispatch` for on-demand runs of any suite.
 
+**Output redaction**: because the repository is public, CI run logs and Job Summaries
+are readable by anyone. The harness therefore redacts live infrastructure identifiers
+(endpoints, public/Tailscale IPs, `*.ts.net` hostnames, cluster name, Talos version)
+from all TAP output by default, replacing them with placeholders like `[endpoint]` and
+`[ipv4]`. For local debugging where the actual values are needed:
+
+```bash
+CHECK_REDACT=false make test-smoke
+```
+
+Never disable redaction in CI.
+
 ## End-to-End Deployment Script (Example)
 
 > **Note**: This script is a reference template — it is not included in the repository.

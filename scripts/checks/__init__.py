@@ -10,7 +10,9 @@ import shutil
 import socket
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 # Validation patterns
 _HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9._:-]+$")
@@ -201,6 +203,89 @@ class CheckContext:
         ctx.node = ctx.node or ctx.endpoint
 
         return ctx
+
+
+# --- Output redaction --------------------------------------------------
+# CI publishes TAP output in public Actions run logs and Job Summaries
+# (the repository is public), so live infrastructure identifiers —
+# endpoints, IPs, the tailnet hostname, cluster name — must never appear
+# in it. Redaction is ON by default; set CHECK_REDACT=false for local
+# debugging where the actual values are needed.
+
+_IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# ::-compressed forms must precede the full form in the alternation, or the
+# full-form branch consumes the head of "a:b:c::d" and leaks "::d". All
+# repetitions are bounded (IPv6 has at most 8 groups) to keep matching linear
+# on adversarial input. May also match MAC-like hex:colon strings and
+# HH:MM:SS timestamps — over-redacting those is acceptable.
+_IPV6_RE = re.compile(
+    r"(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?"
+    r"|(?<![\w:])::(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,7})"
+    r"|\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b"
+)
+_TSNET_RE = re.compile(r"\b[\w][\w.-]*\.ts\.net\b", re.IGNORECASE)
+
+
+def redact_disabled() -> bool:
+    """True when the operator explicitly disabled redaction (local debugging)."""
+    return os.environ.get("CHECK_REDACT", "true").strip().lower() in ("false", "0", "no")
+
+
+def redact_patterns(text: str) -> str:
+    """Pattern-only scrubbing (IPv4/IPv6/*.ts.net) — usable even when no
+    CheckContext exists, e.g. for fatal errors during context construction."""
+    text = _TSNET_RE.sub("[ts-hostname]", text)
+    text = _IPV4_RE.sub("[ipv4]", text)
+    text = _IPV6_RE.sub("[ipv6]", text)
+    return text
+
+
+def build_redactor(ctx: "CheckContext") -> Callable[[str], str]:
+    """Build a callable that scrubs live identifiers from output text.
+
+    Replaces known context values with stable placeholders, then applies
+    pattern-based scrubbing (IPv4/IPv6/*.ts.net) to catch identifiers
+    embedded in subprocess stderr (e.g. gRPC dial errors).
+    """
+    if redact_disabled():
+        return lambda text: text
+
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(value: str, placeholder: str) -> None:
+        # Skip short values — replacing them would mangle unrelated text
+        if value and len(value) >= 4 and value not in seen:
+            seen.add(value)
+            pairs.append((value, placeholder))
+
+    add(ctx.cluster_endpoint, "[cluster-endpoint]")
+    if ctx.cluster_endpoint:
+        add(urlparse(ctx.cluster_endpoint).hostname or "", "[cluster-host]")
+    add(ctx.endpoint, "[endpoint]")
+    add(ctx.node, "[node]")
+    add(ctx.public_ip, "[public-ip]")
+    add(ctx.tailscale_ip, "[tailscale-ip]")
+    add(ctx.cluster_name, "[cluster-name]")
+    add(ctx.talos_version, "[talos-version]")
+    add(ctx.talos_version.lstrip("vV"), "[talos-version]")
+
+    if not pairs:
+        return redact_patterns
+
+    # Single-pass substitution via one alternation: replaced text is never
+    # re-scanned, so a value that happens to be a substring of another value
+    # or of a placeholder cannot garble the output. Longest-first ordering
+    # makes the alternation prefer the most specific value at each position.
+    pairs.sort(key=lambda p: len(p[0]), reverse=True)
+    placeholder_by_value = dict(pairs)
+    values_re = re.compile("|".join(re.escape(value) for value, _ in pairs))
+
+    def redact(text: str) -> str:
+        text = values_re.sub(lambda m: placeholder_by_value[m.group(0)], text)
+        return redact_patterns(text)
+
+    return redact
 
 
 def _tofu_outputs() -> dict:
