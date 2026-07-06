@@ -41,6 +41,22 @@ variable "talos_version" {
   }
 }
 
+# Deliberately NOT Renovate-managed: this must move in lockstep with
+# talos_version per the Talos support matrix
+# (https://www.talos.dev/latest/introduction/support-matrix/). Without an
+# explicit pin the talos provider's floating default is used, and a provider
+# bump broke machine-config generation (K8s 1.36.0 vs Talos 1.12.3, issue #269).
+variable "kubernetes_version" {
+  description = "Kubernetes version for the generated machine configuration (bare semver, e.g. 1.35.0). Must be within talos_version's supported range. Changes apply in-place via talos_machine_configuration_apply — no reinstall."
+  type        = string
+  default     = "1.35.0"
+
+  validation {
+    condition     = can(regex("^\\d+\\.\\d+\\.\\d+$", var.kubernetes_version))
+    error_message = "kubernetes_version must be a bare semantic version without 'v' prefix (e.g., 1.35.0)."
+  }
+}
+
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
   type        = string
