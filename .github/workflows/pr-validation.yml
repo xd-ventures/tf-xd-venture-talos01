@@ -3,18 +3,14 @@
 
 name: PR Validation
 
+# No paths filter: "Pre-commit Checks" and "Trivy IaC Scan" are required
+# status checks on the main ruleset — a required check that never reports
+# leaves the PR unmergeable, so this workflow must run on every PR
+# (docs-only PRs included). The jobs are cheap (~2 min combined) and
+# pre-commit covers docs files too (whitespace, EOF, secrets).
 on:
   pull_request:
     branches: [main]
-    paths:
-      - '**/*.tf'
-      - '**/*.tfvars.example'
-      - '.terraform.lock.hcl'
-      - '.pre-commit-config.yaml'
-      - '.tflint.hcl'
-      - 'scripts/**'
-      - 'templates/**'
-      - '.github/workflows/pr-validation.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
