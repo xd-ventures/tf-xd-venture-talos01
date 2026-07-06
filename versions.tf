@@ -84,9 +84,12 @@ provider "argocd" {
   port_forward_with_namespace = "argocd"
   insecure                    = true # Server runs in insecure mode behind Tailscale
 
-  # Use admin credentials from the initial secret
+  # Use admin credentials from the initial secret.
+  # Must mirror the data source's count gate — provider config blocks are
+  # evaluated even when every resource of the provider has count = 0, so an
+  # ungated [0] here fails the hardening flow at plan (issue #239).
   username = "admin"
-  password = var.argocd_enabled ? data.kubernetes_secret_v1.argocd_initial_admin[0].data.password : ""
+  password = var.argocd_enabled && !var.argocd_disable_admin ? data.kubernetes_secret_v1.argocd_initial_admin[0].data.password : ""
 
   # Kubernetes authentication for port-forward
   kubernetes {

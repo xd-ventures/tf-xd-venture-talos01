@@ -128,9 +128,14 @@ resource "helm_release" "argocd" {
 }
 
 # Data source to retrieve the initial admin password
-# ArgoCD generates this automatically and stores it in a secret
+# ArgoCD generates this automatically and stores it in a secret.
+#
+# Gated on !argocd_disable_admin: the documented hardening flow (change
+# password, delete argocd-initial-admin-secret, set argocd_disable_admin=true,
+# re-apply) deletes the secret this data source reads — reading it
+# unconditionally would fail every apply after hardening (issue #239).
 data "kubernetes_secret_v1" "argocd_initial_admin" {
-  count = var.argocd_enabled ? 1 : 0
+  count = var.argocd_enabled && !var.argocd_disable_admin ? 1 : 0
 
   metadata {
     name      = "argocd-initial-admin-secret"
@@ -204,4 +209,13 @@ resource "argocd_application" "guestbook" {
     helm_release.argocd,
     data.kubernetes_secret_v1.argocd_initial_admin,
   ]
+
+  lifecycle {
+    # The argocd provider authenticates with the initial admin password,
+    # which is unavailable once the admin account is disabled.
+    precondition {
+      condition     = !var.argocd_disable_admin
+      error_message = "argocd_deploy_guestbook requires the admin account: the argocd provider authenticates with the initial admin password, which is unavailable when argocd_disable_admin = true."
+    }
+  }
 }
