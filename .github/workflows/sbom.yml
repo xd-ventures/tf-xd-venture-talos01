@@ -57,13 +57,29 @@ jobs:
         run: mkdir -p sbom-output
 
       # --- Python SBOM ---
+      # --file-patterns: trivy's pip analyzer only recognizes standard
+      # basenames (requirements.txt, poetry.lock, ...); without the mapping,
+      # requirements-lock.txt matches nothing and the SBOM is silently empty
+      # (issue #274).
       - name: Python SBOM
         run: |
           trivy fs requirements-lock.txt \
+            --file-patterns "pip:requirements-lock\.txt" \
             --scanners vuln,license \
             --format cyclonedx \
             --output sbom-output/python.cdx.json \
             --list-all-pkgs
+
+      # Guard: an unrecognized lockfile produces a valid-but-empty SBOM,
+      # which reads as "no Python dependencies" — fail loudly instead.
+      - name: Verify Python SBOM is not empty
+        run: |
+          COUNT=$(python3 -c "import json; print(len(json.load(open('sbom-output/python.cdx.json')).get('components', [])))")
+          echo "Python SBOM components: $COUNT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::python.cdx.json has zero components — requirements-lock.txt was not recognized as a pip lockfile"
+            exit 1
+          fi
 
       # --- Extract all image references ---
       - name: Extract Helm releases and inline images
