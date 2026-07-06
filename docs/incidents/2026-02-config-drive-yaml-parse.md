@@ -125,7 +125,10 @@ config_drive_user_data = data.talos_machine_configuration.controlplane.machine_c
 config_drive_user_data = base64encode(data.talos_machine_configuration.controlplane.machine_configuration)
 ```
 
-This eliminates the entire class of escape-processing issues — any content in templates (`\n`, `\t`, `\\`, etc.) is preserved exactly as generated. **This fix has not yet been applied** — it requires empirical verification that the Terraform OVH provider correctly passes base64 data to the API without additional encoding, and that Talos reads the decoded `user_data` correctly. Tracked in [#147](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/147).
+This eliminates the entire class of escape-processing issues — any content in templates (`\n`, `\t`, `\\`, etc.) is preserved exactly as generated. At the time of writing this fix had not yet been applied, pending empirical verification that the Terraform OVH provider correctly passes base64 data to the API without additional encoding, and that Talos reads the decoded `user_data` correctly. Tracked in [#147](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/147).
+
+> **Update**: The base64 fix has since been applied and verified — `main.tf` now uses
+> `config_drive_user_data = base64encode(...)` (see the Prevention checklist below).
 
 ### 2. Template Workaround (Applied)
 

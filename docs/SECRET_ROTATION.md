@@ -27,7 +27,8 @@ The OVH API uses three values: Application Key, Application Secret, and Consumer
 ### Procedure
 
 1. **Create a new application** at <https://api.ovh.com/createToken/> with the
-   required API rights (see `TESTING_STRATEGY.md` for the minimum permission set).
+   required API rights (see the [OVH BYOI guide](guides/OVH_BYOI_GUIDE.md#required-api-permissions)
+   for the minimum permission set).
 
 2. **Update environment variables** wherever they are configured:
    ```bash

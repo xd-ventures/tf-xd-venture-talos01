@@ -15,7 +15,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 - **Zero-Trust Access**: Tailscale for secure API access (no public IP exposure)
 - **Data Redundancy**: ZFS mirror for persistent storage across NVMe drives
 - **GitOps Ready**: ArgoCD integration for application deployment
-- **Automated Bootstrapping**: Single `tofu apply` provisions the cluster; ZFS storage requires a one-time post-install step
+- **Automated Bootstrapping**: Single `tofu apply` provisions the cluster, including ZFS pool creation (when enabled)
 
 > **Scope**: This project deploys a single-node cluster on one dedicated server. Version upgrades trigger a full reinstall with planned downtime (~15-30 minutes). Designed for development, homelab, and small-team production workloads where maintenance windows are acceptable. See [ADR-0012](docs/adr/0012-single-node-destructive-upgrades.md) for the multi-node upgrade path.
 
@@ -238,7 +238,7 @@ $ export KUBECONFIG=$PWD/kubeconfig
 
 $ kubectl get nodes -o wide
 NAME           STATUS   ROLES           AGE   VERSION   INTERNAL-IP   OS-IMAGE
-talos-cluster  Ready    control-plane   2m    v1.32.0   100.64.1.42   Talos (v1.9.2)
+talos-cluster  Ready    control-plane   2m    v1.35.0   100.64.1.42   Talos (v1.12.3)
 
 $ kubectl get pods -n kube-system
 NAME                                       READY   STATUS      RESTARTS   AGE
@@ -305,27 +305,45 @@ Once created, the pool is automatically imported on every boot by the `ext-zpool
 ├── tailscale.tf            # Tailscale provider and auth key
 ├── firewall.tf             # Network firewall rules
 ├── argocd.tf               # ArgoCD deployment (optional)
+├── shodan.tf               # Shodan exposure monitoring (optional)
 ├── variables.tf            # Input variables
 ├── outputs.tf              # Output values
 ├── versions.tf             # Provider versions
 ├── backend.tf              # Remote state configuration
+├── Makefile                # Common tasks (deploy, test suites, kubeconfig)
 ├── .mcp.json               # MCP server config (iKVM console access)
 ├── terraform.tfvars.example # Example configuration
+├── backend.tfvars.example  # Example backend configuration
+├── .env.example            # Example credential env vars (direnv)
 ├── templates/
-│   └── cilium-install-job.yaml.tftpl  # Cilium CNI install manifest
+│   ├── cilium-install-job.yaml.tftpl  # Cilium CNI install manifest
+│   └── zfs-pool-job.yaml.tftpl        # ZFS pool setup Job
 ├── docs/
+│   ├── README.md           # Documentation index
 │   ├── ARCHITECTURE.md     # Detailed architecture
+│   ├── OPERATIONS_RUNBOOK.md # Operational procedures
+│   ├── DISASTER_RECOVERY.md  # Recovery scenarios
+│   ├── SECRET_ROTATION.md  # Credential rotation
 │   ├── TESTING_STRATEGY.md # Validation procedures
 │   ├── guides/
 │   │   ├── OVH_BYOI_GUIDE.md             # OVH installation specifics
-│   │   └── OVH_CONFIG_DRIVE_REFERENCE.md  # Config drive internals
+│   │   ├── OVH_CONFIG_DRIVE_REFERENCE.md # Config drive internals
+│   │   └── CONSOLE_ACCESS.md             # iKVM/IPMI/rescue access
 │   ├── incidents/
 │   │   └── 2026-02-config-drive-yaml-parse.md  # RCA
 │   └── adr/                # Architecture Decision Records
 └── scripts/
+    ├── cluster_checks.py     # TAP cluster validation harness (make test)
+    ├── checks/               # Check suite modules (smoke/config/storage/security)
+    ├── tailscale-device-cleanup.py  # Stale device cleanup on reinstall
+    ├── validate-templates.py # Render + validate template YAML (CI)
+    ├── extract_helm_releases.py     # Helm release list for SBOM
+    ├── inspect-config-drive.sh      # Find/mount config drive in rescue mode
     ├── ovh-server-status.sh  # Check server status
     ├── ovh-rescue-boot.sh    # Boot to rescue mode
-    └── ovh-normal-boot.sh    # Restore normal boot
+    ├── ovh-normal-boot.sh    # Restore normal boot
+    ├── ovh-ipmi-access.sh    # Request IPMI/KVM console access
+    └── ovh-wait-task.sh      # Poll an OVH task until completion
 ```
 
 ## Security Model
@@ -337,18 +355,22 @@ Once created, the pool is automatically imported on every boot by the `ext-zpool
 | Public Internet | Blocked by firewall | - |
 
 > [!WARNING]
-> The firewall is **disabled by default** to allow bootstrapping. While disabled, the Talos API (port 50000) and Kubernetes API (port 6443) are exposed on the public internet. Enable the firewall as soon as Tailscale connectivity is verified.
+> The firewall is **disabled by default** so you can verify Tailscale connectivity before cutting public access — enabling it prematurely locks you out (recovery requires iKVM or rescue mode). While disabled, the Talos API (port 50000) and Kubernetes API (port 6443) are exposed on the public internet. Enable the firewall as soon as Tailscale connectivity is verified.
+
+Once enabled, the firewall rules are baked into the config drive and active from the very first boot of the reinstalled node — there is no post-boot exposure window.
 
 Enable the firewall after verifying Tailscale connectivity:
 
 ```bash
-# Verify Tailscale works first
-tofu output firewall_verification_commands
-# Run each command to verify
+# 1. Verify Tailscale access works (kubectl/talosctl via the ts.net endpoint)
+kubectl get nodes
 
-# Then enable firewall
+# 2. Enable the firewall (triggers a reinstall)
 # Set enable_firewall = true in terraform.tfvars
 tofu apply
+
+# 3. Verify: public-IP checks should FAIL, Tailscale checks should SUCCEED
+tofu output firewall_verification_commands
 ```
 
 ## Remote State
@@ -386,13 +408,16 @@ tofu fmt -check             # check formatting
 
 ## Upgrades
 
+The upgrade lifecycle is defined in [ADR-0013](docs/adr/0013-upgrade-lifecycle-architecture.md); step-by-step procedures live in the [Operations Runbook](docs/OPERATIONS_RUNBOOK.md).
+
 ### Talos Version Upgrade
 
 ```bash
 # Update talos_version in terraform.tfvars
 talos_version = "v1.13.0"
 
-# Apply - this triggers reinstall
+# Apply - this triggers reinstall (wipes etcd and ZFS pools; see the runbook
+# for the non-destructive talosctl upgrade alternative)
 tofu apply
 ```
 
@@ -408,7 +433,12 @@ tofu apply
 
 ### Configuration Updates (no reinstall)
 
-Use `talosctl apply-config` for runtime config changes that don't require reinstall.
+Inline-manifest content changes (the Cilium install Job, the ZFS pool Job — e.g. Renovate image bumps) are applied live during `tofu apply` via `talos_machine_configuration_apply` — no reinstall and no manual `talosctl apply-config` needed (running it by hand would drift the node from what OpenTofu manages).
+
+> [!NOTE]
+> certSANs and extraHostEntries changes still trigger a full reinstall — they are part
+> of the reinstall trigger (see `triggers_replace` in `main.tf` for the authoritative
+> list of what does and does not reinstall).
 
 ## Troubleshooting
 
@@ -481,8 +511,14 @@ talosctl --endpoints $TSIP health
 
 ## Documentation
 
+- [Documentation Index](docs/README.md)
 - [Architecture Overview](docs/ARCHITECTURE.md)
+- [Operations Runbook](docs/OPERATIONS_RUNBOOK.md)
+- [Disaster Recovery](docs/DISASTER_RECOVERY.md)
+- [Secret Rotation](docs/SECRET_ROTATION.md)
 - [Testing Strategy](docs/TESTING_STRATEGY.md)
+- [OVH BYOI Guide](docs/guides/OVH_BYOI_GUIDE.md)
+- [Console Access](docs/guides/CONSOLE_ACCESS.md)
 - [Architecture Decision Records](docs/adr/README.md)
 
 ## Contributing

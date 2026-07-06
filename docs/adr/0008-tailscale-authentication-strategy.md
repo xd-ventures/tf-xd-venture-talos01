@@ -1,5 +1,14 @@
 # ADR-0008: Tailscale Authentication Strategy for Terraform
 
+> **Note** (2026-07-06): Two amendments since acceptance:
+> 1. `tailscale_tailnet_key.talos` now sets `recreate_if_invalid = "never"` so
+>    hourly key expiry does not churn plans — see
+>    [#129](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/129).
+> 2. Stale-device cleanup on reinstall is automated by
+>    `scripts/tailscale-device-cleanup.py`, which requires the `devices:core`
+>    OAuth scope in addition to the scopes below — see
+>    [#156](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/156).
+
 ## Status
 
 Accepted

@@ -2,14 +2,33 @@
 
 Step-by-step procedures for common operational tasks on the Talos Kubernetes cluster.
 
+## Running Host Commands (No Shell on Talos)
+
+Talos has no shell and `talosctl` cannot execute arbitrary binaries on the host. The ZFS
+tools (`zpool`, `zfs`) live at `/usr/local/sbin` on the host (installed by the
+`siderolabs/zfs` extension). Run them from a privileged debug pod in the host mount
+namespace — the same pattern the `zfs-pool-setup` Job uses:
+
+```bash
+NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+  nsenter -t 1 -m -- /usr/local/sbin/zpool status
+```
+
+Requires `kubectl` >= 1.27 for `--profile=sysadmin`. For kernel module checks use
+`talosctl read /proc/modules` (no pod needed). The procedures below assume `NODE` is set.
+
 ## Talos Version Upgrade
 
-Version upgrades trigger a full OVH BYOI reinstall via `tofu apply`. This wipes the disk
-including etcd state and ZFS pools. Expected downtime: 15–30 minutes. Workloads redeploy
-automatically via ArgoCD.
+Version upgrades applied through `tofu apply` trigger a full OVH BYOI reinstall. This
+wipes the disk including etcd state and ZFS pools. Expected downtime: 15–30 minutes.
+Workloads redeploy automatically via ArgoCD.
 
-See [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for rationale on destructive
-upgrades and the multi-node upgrade path.
+See [ADR-0013](adr/0013-upgrade-lifecycle-architecture.md) for the upgrade lifecycle
+architecture (config-only changes already apply without a reinstall — Phase 1; in-place
+OS upgrades are planned in [#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210))
+and [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for the original
+destructive-upgrade rationale.
 
 ### Pre-Checks
 
@@ -23,8 +42,8 @@ upgrades and the multi-node upgrade path.
 
 2. **Check ZFS pool status** (if enabled)
    ```bash
-   talosctl -n $(talosctl config info -o json | jq -r '.endpoints[0]') \
-     run /usr/local/sbin/zpool status
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status
    ```
 
 3. **Back up persistent data** — ZFS pools do not survive reinstall.
@@ -83,7 +102,8 @@ tofu apply
 5. **Verify ZFS pool** (if enabled) — the pool must be recreated after reinstall
    ```bash
    kubectl logs -n kube-system job/zfs-pool-setup
-   talosctl run /usr/local/sbin/zpool status
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status
    ```
 
 ### Rollback
@@ -104,12 +124,20 @@ instead of `tofu apply`. This only replaces the Talos OS image without triggerin
 a full reinstall:
 
 ```bash
-talosctl upgrade --image $(tofu output -raw talos_installer_image)
+talosctl upgrade --image $(tofu output -raw talos_installer_image) \
+  --stage --preserve --wait
 ```
 
+> **Warning**: `--stage` and `--preserve` are **mandatory** on this cluster
+> ([ADR-0013](adr/0013-upgrade-lifecycle-architecture.md)): `--stage` installs the
+> upgrade before ZFS mounts are active (avoids the unmount failure in
+> [siderolabs/talos#8800](https://github.com/siderolabs/talos/issues/8800)), and
+> `--preserve` keeps the EPHEMERAL partition — on a single-node cluster etcd cannot
+> rebuild from peers, so omitting it loses the cluster.
+
 > **Caution**: The Terraform state will not reflect the new version. Run `tofu plan`
-> afterward to check for drift. See [ADR-0012](adr/0012-single-node-destructive-upgrades.md)
-> for detailed guidance on when to use each approach.
+> afterward to check for drift. In-place upgrades managed by OpenTofu are planned in
+> [#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210).
 
 ---
 
@@ -140,11 +168,18 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    ssh root@<server-public-ip>
    ```
 
-5. **Inspect disks in rescue mode**
+5. **Inspect disks in rescue mode** — identify partitions by label, not by number
    ```bash
    lsblk
-   mount /dev/nvme0n1p5 /mnt   # STATE partition
-   cat /mnt/config.yaml         # Inspect Talos config
+   blkid   # STATE = Talos state partition; config-2 = OVH config drive
+
+   # Inspect the machine config delivered by OVH (config drive)
+   mount $(blkid -L config-2) /mnt
+   cat /mnt/openstack/latest/user_data
+
+   # Or inspect the config Talos persisted (STATE partition)
+   umount /mnt && mount $(blkid -L STATE) /mnt
+   cat /mnt/config.yaml
    ```
 
 6. **Return to normal boot when ready**
@@ -181,15 +216,17 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 ### ZFS Pool Degraded
 
-1. **Check pool status**
+1. **Check pool status** (see [Running Host Commands](#running-host-commands-no-shell-on-talos))
    ```bash
-   talosctl run /usr/local/sbin/zpool status tank
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status tank
    ```
 
 2. **If a disk has failed**, the mirror continues serving from the remaining disk.
    Check which disk is faulted:
    ```bash
-   talosctl run /usr/local/sbin/zpool status -v tank
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status -v tank
    ```
 
 3. **Replace the failed disk** (requires physical intervention or OVH support ticket).
@@ -197,12 +234,14 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    ```bash
    # Example: /dev/nvme0n1p3 failed, replaced disk appears as /dev/nvme1n1
    # Partition the new disk, then replace the faulted vdev
-   talosctl run /usr/local/sbin/zpool replace tank /dev/nvme0n1p3 /dev/nvme1n1p3
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool replace tank /dev/nvme0n1p3 /dev/nvme1n1p3
    ```
 
 4. **Monitor resilver progress**
    ```bash
-   talosctl run /usr/local/sbin/zpool status tank
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status tank
    ```
 
 ### ZFS Pool Not Mounting After Reinstall
@@ -212,14 +251,15 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
    kubectl logs -n kube-system job/zfs-pool-setup
    ```
 
-2. **Verify the ZFS extension is loaded**
+2. **Verify the ZFS kernel module is loaded**
    ```bash
-   talosctl run lsmod | grep zfs
+   talosctl read /proc/modules | grep -i zfs
    ```
 
 3. **Manually import the pool** (if it exists from a previous install)
    ```bash
-   talosctl run /usr/local/sbin/zpool import tank
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool import tank
    ```
 
 ---
@@ -238,7 +278,7 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 | Check | Command | What to Look For |
 |-------|---------|------------------|
-| ZFS pool health | `talosctl run /usr/local/sbin/zpool status` | `ONLINE`, no errors |
+| ZFS pool health | `make test-storage` (or the debug-pod `zpool status` from [Running Host Commands](#running-host-commands-no-shell-on-talos)) | `ONLINE`, no errors |
 | Disk usage | `kubectl top nodes` | No resource pressure |
 | Cilium status | `cilium status` | All components healthy |
 | Hubble flows | `hubble status` | Relay connected |
@@ -275,5 +315,6 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image)
 
 - [Architecture Overview](ARCHITECTURE.md) — system design and component details
 - [Testing Strategy](TESTING_STRATEGY.md) — validation phases and debugging procedures
-- [OVH BYOI Guide](OVH_BYOI_GUIDE.md) — installation specifics
+- [OVH BYOI Guide](guides/OVH_BYOI_GUIDE.md) — installation specifics
+- [ADR-0013: Upgrade Lifecycle](adr/0013-upgrade-lifecycle-architecture.md) — upgrade architecture
 - [ADR-0012: Single-Node Upgrades](adr/0012-single-node-destructive-upgrades.md) — upgrade strategy rationale

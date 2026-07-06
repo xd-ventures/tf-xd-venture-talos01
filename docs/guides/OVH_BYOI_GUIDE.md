@@ -107,8 +107,18 @@ The `terraform_data.reinstall_trigger` resource tracks **stable** configuration 
 - Extensions list
 - CertSANs configuration
 - Tailscale hostname, tailnet, or extra args
+- Firewall toggle (`enable_firewall`) and the pod/service/Tailscale CIDRs — firewall rules are baked into the config drive, so changing them requires regenerating it
+- ZFS pool toggle (`zfs_pool_enabled`) and machine-level config patches (ZFS extension config, EPHEMERAL volume config, extraHostEntries) — baked into the machine config on the config drive
+
+See the `triggers_replace` list in `main.tf` for the authoritative set. Inline-manifest **content** (the Cilium/ZFS Jobs) is deliberately excluded — those changes apply live via `talos_machine_configuration_apply` without a reinstall.
 
 The Tailscale auth key is explicitly **excluded** — it rotates hourly but is only needed once during initial setup (`TS_AUTH_ONCE=true`).
+
+> **Encoding note**: `configDriveUserData` is base64-encoded in `main.tf`
+> (`base64encode(...)`). OVH decodes it before writing the config drive. Cleartext
+> mode is subject to OVH escape processing (`\n` → newline, etc.), which corrupted
+> the machine config and caused a 12-day outage — see the
+> [RCA](../incidents/2026-02-config-drive-yaml-parse.md). Do not switch back to cleartext.
 
 ## Diagnostic Scripts
 
@@ -136,8 +146,8 @@ ssh root@<server-ip>
 
 # Inspect what happened
 lsblk -f                           # Check disk layout
-blkid | grep config                 # Find config drive
-mount /dev/nvme0n1p5 /mnt && ls /mnt  # Check config drive contents
+blkid | grep config                 # Find config drive (label: config-2)
+mount $(blkid -L config-2) /mnt && ls /mnt  # Check config drive contents
 ```
 
 ## Related Documentation

@@ -61,7 +61,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 │  │              └───────┬───────┘                                 │  │
 │  │                      ▼                                         │  │
 │  │              /var/mnt/data                                     │  │
-│  │              (local-path-provisioner)                          │  │
+│  │              (ZFS pool mount)                                  │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────┘
                         │
@@ -103,7 +103,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 |-----------|------------|---------|
 | System Disk | NVMe (Talos-managed) | OS, etcd, ephemeral |
 | Data Storage | ZFS Mirror | Persistent volumes |
-| PV Provisioner | local-path-provisioner | Kubernetes PVs |
+| PV Provisioner | local-path-provisioner (planned — not yet deployed) | Kubernetes PVs |
 | Backup | Velero (planned) | Disaster recovery |
 
 ### Management Layer
@@ -112,7 +112,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 |-----------|------------|---------|
 | IaC | OpenTofu/Terraform | Infrastructure as Code |
 | State Backend | OVH Object Storage | Remote state |
-| GitOps | ArgoCD (planned) | Application deployment |
+| GitOps | ArgoCD (optional, `argocd_enabled` — see argocd.tf) | Application deployment |
 | Secrets | External (TBD) | Secret management |
 
 ## Security Model
@@ -151,8 +151,8 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 |-------|------------|-------|
 | Network (Admin) | WireGuard (Tailscale) | End-to-end encrypted |
 | Network (Public) | TLS (Cloudflare, planned) | TLS 1.3 |
-| Disk (STATE) | LUKS2 | Talos encryption |
-| Disk (Data) | ZFS encryption (optional) | At-rest encryption |
+| Disk (STATE) | Not encrypted | Talos supports LUKS2 STATE encryption; this project does not configure it |
+| Disk (Data) | ZFS encryption (optional, not configured) | At-rest encryption |
 
 ## Deployment Topology
 
@@ -160,9 +160,13 @@ This project deploys a **single control plane node** with `allowSchedulingOnCont
 
 ### Upgrade Mechanics
 
-Version upgrades (`talos_version` change) trigger a full OVH BYOI reinstall via `tofu apply`. This wipes the disk including etcd state and ZFS pools. Expected downtime: 15-30 minutes. Workloads redeploy automatically via ArgoCD.
+The upgrade lifecycle is defined in [ADR-0013](adr/0013-upgrade-lifecycle-architecture.md):
 
-For non-destructive upgrades that preserve data, use `talosctl upgrade` with the installer image from `tofu output talos_installer_image`. See ADR-0012 for detailed guidance on when to use each approach.
+- **Inline-manifest content changes** (Cilium install Job, ZFS pool Job — e.g. Renovate image bumps) are applied live by `talos_machine_configuration_apply` during `tofu apply` — no reinstall (Phase 1, implemented; manifest content is deliberately excluded from the reinstall trigger). Note: certSANs and extraHostEntries changes remain in `triggers_replace` (main.tf) and still cause a full reinstall.
+- **Version upgrades** (`talos_version` change) via `tofu apply` trigger a full OVH BYOI reinstall. This wipes the disk including etcd state and ZFS pools. Expected downtime: 15-30 minutes. Workloads redeploy automatically via ArgoCD.
+- **Non-destructive OS upgrades** that preserve data: `talosctl upgrade --image $(tofu output -raw talos_installer_image) --stage --preserve --wait`. Both `--stage` and `--preserve` are mandatory on this cluster (ZFS-on-system-disk, single-node etcd) — see ADR-0013. OpenTofu-managed in-place upgrades are planned in [#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210).
+
+See [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for the original destructive-upgrade rationale.
 
 ### Single-Node Trade-offs
 

@@ -5,7 +5,10 @@
 | Document | Description |
 |----------|-------------|
 | [Architecture Overview](ARCHITECTURE.md) | System design, components, security model, and failure modes |
-| [Testing Strategy](TESTING_STRATEGY.md) | Validation phases, debugging capabilities, and CI/CD integration |
+| [Operations Runbook](OPERATIONS_RUNBOOK.md) | Upgrades, failure recovery, ZFS procedures, and operational cadence |
+| [Disaster Recovery](DISASTER_RECOVERY.md) | Scenario-based recovery procedures, rescue mode, IPMI access |
+| [Secret Rotation](SECRET_ROTATION.md) | Rotation procedures for OVH, Tailscale, Shodan, and backend credentials |
+| [Testing Strategy](TESTING_STRATEGY.md) | Cluster check harness, validation phases, debugging, CI coverage |
 
 ## Guides
 

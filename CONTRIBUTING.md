@@ -66,7 +66,9 @@ This runs all the same checks as CI: OpenTofu formatting, validation, TFLint, Sh
 ### 5. Open a Pull Request
 
 - Reference the issue in the PR body (e.g., `Fixes #42`)
-- CI runs pre-commit hooks and a Trivy security scan
+- CI runs pre-commit hooks, a Trivy IaC scan, and CodeQL static analysis
+  (a daily `cluster-checks` workflow also validates the live cluster, and
+  SBOM/Scorecard workflows run on main — see `docs/TESTING_STRATEGY.md`)
 - CRITICAL severity findings or secret leaks will fail the build
 
 ## For AI Agents

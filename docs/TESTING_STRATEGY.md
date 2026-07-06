@@ -61,7 +61,9 @@ brew install tailscale
 | Kubernetes API | `kubectl get nodes` | Node Ready |
 | Cilium status | `cilium status` | OK |
 | Hubble status | `hubble status` | OK |
-| ZFS pool | `talosctl -n <node> run zpool status` | Pool healthy |
+| ZFS pool | `make test-storage` | Pool healthy |
+
+Or run the whole suite: `make test` (TAP output via `scripts/cluster_checks.py`).
 
 ## Autonomous Debugging Capabilities
 
@@ -111,8 +113,9 @@ ssh root@<server-ip>
 lsblk
 fdisk -l
 
-# Mount and inspect Talos partitions
-mount /dev/nvme0n1p5 /mnt  # STATE partition
+# Mount and inspect Talos partitions — identify by label, not number
+blkid   # STATE = Talos state; config-2 = OVH config drive
+mount $(blkid -L STATE) /mnt
 ls /mnt
 
 # Check Talos config
@@ -180,22 +183,45 @@ zpool status
 
 ### Scenario: ZFS Pool Not Mounting
 
-1. **SSH to node via Tailscale**
+Talos has no shell and `talosctl` cannot run host binaries — use a privileged debug
+pod in the host mount namespace (see the Operations Runbook, "Running Host Commands"):
+
+1. **Check pool status**
    ```bash
-   talosctl -n <tailscale-ip> run zpool status
+   NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool status
    ```
 
 2. **Check ZFS module loaded**
    ```bash
-   talosctl -n <tailscale-ip> run lsmod | grep zfs
+   talosctl -n <tailscale-ip> read /proc/modules | grep -i zfs
    ```
 
 3. **Manually import pool**
    ```bash
-   talosctl -n <tailscale-ip> run zpool import tank
+   kubectl debug node/$NODE -it --profile=sysadmin --image=alpine -- \
+     nsenter -t 1 -m -- /usr/local/sbin/zpool import tank
    ```
 
-## Automated Test Script (Example)
+## Automated Cluster Checks (In the Repository)
+
+The repository ships a TAP-emitting validation harness: `scripts/cluster_checks.py`
+with suite modules under `scripts/checks/`. Run it via Make:
+
+| Target | Coverage |
+|--------|----------|
+| `make test` | All suites |
+| `make test-smoke` | Talos API reachability |
+| `make test-config` | Extensions, inline manifests, pods, cluster endpoint |
+| `make test-storage` | ZFS pool health, PV write |
+| `make test-security` | Firewall port scan |
+
+The same harness runs in CI: `.github/workflows/cluster-checks.yml` executes the smoke
+suite daily (cron) against the production cluster and publishes a Job Summary, with
+`workflow_dispatch` for on-demand runs of any suite.
+
+## End-to-End Deployment Script (Example)
 
 > **Note**: This script is a reference template — it is not included in the repository.
 > Adapt it to your environment before use.
@@ -209,15 +235,11 @@ tofu validate
 tofu plan -out=tfplan
 
 echo "=== Phase 2: Deploy ==="
+# The ovh_dedicated_server_reinstall_task resource blocks until the OVH
+# reinstall completes — no separate task-wait step is needed.
 tofu apply tfplan
 
-echo "=== Phase 3: Wait for reinstall ==="
-TASK_ID=$(tofu output -raw reinstall_task_id 2>/dev/null || echo "")
-if [ -n "$TASK_ID" ]; then
-  ./scripts/ovh-wait-task.sh "$TASK_ID"
-fi
-
-echo "=== Phase 4: Wait for Tailscale ==="
+echo "=== Phase 3: Wait for Tailscale ==="
 HOSTNAME=$(tofu output -raw tailscale_hostname)
 echo "Waiting for $HOSTNAME to appear on Tailscale..."
 for i in {1..60}; do
@@ -228,7 +250,7 @@ for i in {1..60}; do
   sleep 10
 done
 
-echo "=== Phase 5: Health checks ==="
+echo "=== Phase 4: Health checks ==="
 TS_IP=$(tailscale ip -4 "$HOSTNAME" 2>/dev/null || dig +short "$HOSTNAME")
 
 # Talos health
@@ -246,11 +268,23 @@ cilium status
 echo "=== All tests passed ==="
 ```
 
-## CI/CD Integration (Planned)
+## CI/CD Integration
 
-> **Note**: Deployment testing in CI is not yet implemented. The workflow below is a
-> starting point for future automation. The current CI pipeline validates code quality
-> only (pre-commit hooks + Trivy scan) — see `.github/workflows/pr-validation.yml`.
+Current CI coverage:
+
+| Workflow | Trigger | Coverage |
+|----------|---------|----------|
+| `pr-validation.yml` | PRs touching `*.tf`, `scripts/`, `templates/`, lint/hook configs | Pre-commit hooks (fmt, validate, tflint, shellcheck, gitleaks, license headers) + Trivy IaC scan |
+| `cluster-checks.yml` | Daily cron + manual | Live cluster validation (smoke suite) against production |
+| `codeql.yml` | Push/PR to main + weekly cron | Static analysis (Python, Actions) |
+| `sbom.yml` | Push to main + releases | SBOM generation + Trivy vulnerability scan |
+| `scorecard.yml` | Weekly + push to main | OpenSSF Scorecard supply-chain posture |
+
+### Full Deployment Testing (Planned)
+
+> **Note**: End-to-end *deployment* testing in CI (provisioning a real server per PR)
+> is not implemented — it would reinstall the production server. The workflow below is
+> a starting point if a dedicated test server becomes available.
 
 ```yaml
 # .github/workflows/test.yml (not yet implemented)
