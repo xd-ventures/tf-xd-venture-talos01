@@ -3,14 +3,14 @@ ovh_endpoint   = "ovh-eu"  # Change to your OVH endpoint (ovh-eu, ovh-ca, ovh-us
 ovh_subsidiary = "FR"      # OVH subsidiary where server was ordered (FR, DE, ES, GB, CA, US, etc.)
 
 # Server Management
-monitoring_enabled = true  # Enable/disable OVH monitoring
+monitoring_enabled = false # OVH monitoring; keep disabled — Talos does not respond to OVH's probes
 server_state       = "ok"  # Server state (ok, disabled, etc.)
 
 # Talos OS Configuration
 talos_version    = "v1.12.0"                       # Talos OS version to deploy
 cluster_name     = "talos-xd-venture"              # Kubernetes cluster name
 cluster_endpoint = "https://<server-ip>:6443"      # Replace <server-ip> with actual server IP (used when Tailscale not configured)
-talos_extensions = []                              # List of image factory extensions (e.g., ["qemu-guest-agent", "iscsi-tools"])
+talos_extensions = []                              # Image factory extensions, full names (e.g., ["siderolabs/qemu-guest-agent", "siderolabs/iscsi-tools"])
 use_raw_image    = false                           # Use raw (.raw.xz) format if true, qcow2 if false (default: false, qcow2 recommended)
 
 # Tailscale Configuration (optional - enables secure access via Tailscale only)
@@ -24,7 +24,9 @@ use_raw_image    = false                           # Use raw (.raw.xz) format if
 #   TAILSCALE_OAUTH_CLIENT_SECRET="..."
 #
 # Setup OAuth client at: Tailscale Admin -> Settings -> OAuth clients
-# Recommended scopes: auth_keys + devices:read (see ADR-0008)
+# Recommended scopes: auth_keys + devices:read + devices:core (see ADR-0008)
+#   devices:core enables automatic stale-device cleanup on reinstall (issue #156);
+#   without it, the first reinstall with a stale device fails with a 403
 # Required ACL: {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"]}}
 #
 tailscale_hostname      = "talos-xd-venture"     # Hostname for the Tailscale node (without .ts.net suffix)
@@ -40,10 +42,13 @@ tailscale_tags          = ["tag:k8s-cluster"]    # Tags for the device (must be 
 #
 # Verification steps:
 #   1. Deploy with enable_firewall = false
-#   2. Run: tofu output firewall_verification_commands
-#   3. Execute each command shown in the output
-#   4. If all pass, set enable_firewall = true and run: tofu apply
-#   5. Verify with: tofu output firewall_post_enable_test
+#   2. Verify Tailscale access works: run kubectl/talosctl against the
+#      ts.net endpoint (see "4. Access the Cluster" in README.md)
+#   3. Set enable_firewall = true and run: tofu apply (triggers a reinstall —
+#      the firewall is baked into the config drive, active from first boot)
+#   4. Run: tofu output firewall_verification_commands
+#      Execute each command: public-IP checks should FAIL, Tailscale should SUCCEED
+#   5. Summary at any time: tofu output firewall_status
 #
 # If locked out: Use OVH iKVM console access to recover
 #
@@ -53,6 +58,20 @@ enable_firewall = false  # Set to true ONLY after verifying Tailscale access wor
 # pod_network_cidr    = "10.244.0.0/16"       # Cilium pod CIDR (Kubernetes IPAM)
 # tailscale_ipv4_cidr = "100.64.0.0/10"       # Tailscale IPv4 range
 # tailscale_ipv6_cidr = "fd7a:115c:a1e0::/48" # Tailscale IPv6 range
+
+# ArgoCD GitOps (optional - deploys ArgoCD via Helm after bootstrap)
+# ==========================================================================
+# Enable only after the cluster is bootstrapped and reachable.
+# Hardening flow after first login (see SECURITY.md "Known Security
+# Considerations"): change the admin password, delete the
+# argocd-initial-admin-secret, then set argocd_disable_admin = true here
+# and re-apply.
+#
+# argocd_enabled          = true
+# argocd_server_insecure  = true    # No TLS on the server; safe via Tailscale + port-forward
+# argocd_disable_admin    = false   # Set true after password rotation + SSO/extra accounts
+# argocd_deploy_guestbook = false   # Demo app to exercise the GitOps workflow
+# argocd_chart_version    = "9.7.1" # Pinned default; managed by Renovate
 
 # Shodan Network Monitoring (optional - alerts on accidental public exposure)
 # ==========================================================================

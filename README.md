@@ -1,7 +1,9 @@
 # Talos Kubernetes Cluster on OVH Bare Metal
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![PR Validation](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml)
+[![PR Validation](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml/badge.svg?event=pull_request)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml)
+[![CodeQL](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/codeql.yml/badge.svg)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/xd-ventures/tf-xd-venture-talos01/badge)](https://scorecard.dev/viewer/?uri=github.com/xd-ventures/tf-xd-venture-talos01)
 [![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.6.0-blue.svg)](https://opentofu.org/)
 
 Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster on OVH dedicated servers.
@@ -77,7 +79,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 
 #### OVH API
 
-Create API credentials at [api.ovh.com/createToken](https://api.ovh.com/createToken):
+Create API credentials at [api.ovh.com/createToken](https://api.ovh.com/createToken). Grant the access rules listed in the [OVH BYOI guide](docs/guides/OVH_BYOI_GUIDE.md#required-api-permissions) (read/update server, trigger reinstall, monitor tasks):
 
 ```bash
 export OVH_ENDPOINT="ovh-eu"
@@ -85,6 +87,10 @@ export OVH_APPLICATION_KEY="your-app-key"
 export OVH_APPLICATION_SECRET="your-app-secret"
 export OVH_CONSUMER_KEY="your-consumer-key"
 ```
+
+> [!TIP]
+> Instead of exporting variables manually, copy [`.env.example`](.env.example) to `.env`
+> and load it with [direnv](https://direnv.net/). `.env` is gitignored.
 
 #### Tailscale OAuth
 
@@ -104,6 +110,10 @@ This project uses a [Tailscale OAuth client](https://tailscale.com/kb/1215/oauth
 2. **Create an OAuth client** — in the Tailscale admin console under [Settings > OAuth clients](https://login.tailscale.com/admin/settings/oauth), create a credential with scopes:
    - `auth_keys` (required) — generate pre-auth keys for device registration
    - `devices:read` (recommended) — auto-discover the node's Tailscale IP for firewall rules
+   - `devices:core` (recommended) — automatically remove the stale device record during a
+     reinstall ([#156](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/156)); without
+     it, the first reinstall with a stale device fails with a 403 and you must delete the old
+     device from the admin console by hand
 3. **Export credentials:**
    ```bash
    export TAILSCALE_OAUTH_CLIENT_ID="your-client-id"
@@ -140,9 +150,20 @@ cp backend.tfvars.example backend.tfvars
 # Edit backend.tfvars with your bucket, region, and endpoint
 
 tofu init -backend-config=backend.tfvars
+
+# Import your existing dedicated server into state (one-time step).
+# Find the service name (e.g. ns1234567.ip-10-20-30.eu) in the OVH control
+# panel or via: GET /dedicated/server on api.ovh.com/console
+tofu import ovh_dedicated_server.talos01 <service_name>
+
 tofu plan
 tofu apply
 ```
+
+> [!IMPORTANT]
+> Skipping the import makes `tofu apply` try to **order a new dedicated server**
+> instead of reinstalling your existing one — the resource manages an existing
+> server and must be imported into fresh state first.
 
 ### 4. Access the Cluster
 
