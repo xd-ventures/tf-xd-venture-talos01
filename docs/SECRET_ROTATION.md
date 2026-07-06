@@ -129,11 +129,14 @@ ArgoCD generates a random initial admin password stored in the
    ```
 
 5. **Optionally disable the admin account** — set `argocd_disable_admin = true`
-   in `terraform.tfvars` and re-apply. Re-enable if you need to recover access.
+   in `terraform.tfvars` and re-apply.
 
-> **Warning**: After deleting the initial secret and disabling the admin account,
-> the only way to recover access is to re-enable the admin account in
-> `terraform.tfvars` and re-apply, which recreates the initial secret.
+> **Warning**: Re-applying with `argocd_disable_admin = false` does **not**
+> recover access — the Helm chart creates `argocd-initial-admin-secret` only on
+> fresh install, and OpenTofu would fail reading the deleted secret. To recover
+> admin access after hardening, set a new bcrypt password hash directly in the
+> `argocd-secret` Secret (see the [ArgoCD FAQ](https://argo-cd.readthedocs.io/en/stable/faq/#i-forgot-the-admin-password-how-do-i-reset-it))
+> or reinstall ArgoCD.
 
 ---
 
