@@ -30,6 +30,10 @@ Environment variables:
     CHECK_PUBLIC_IP         — Server public IP (for security checks)
     CHECK_TAILSCALE_IP      — Tailscale IP (for security checks)
     CHECK_API_TIMEOUT       — Seconds to wait for Talos API (default: 300)
+    CHECK_REDACT            — Redact live identifiers (endpoints, IPs,
+                              ts.net hostnames, cluster name, version)
+                              from output (default: true). CI logs are
+                              public — only set to "false" locally.
 
 If environment variables are not set, values are auto-detected from
 `tofu output -json` when available.
@@ -48,7 +52,7 @@ import sys
 # Add scripts/ to path so checks package is importable
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from checks import CheckContext
+from checks import CheckContext, build_redactor, redact_disabled, redact_patterns
 from checks.tap import TAPProducer
 
 
@@ -75,8 +79,8 @@ def main() -> int:
     # Determine which suites to run
     suites = SUITES if args.suite == "all" else [args.suite]
 
-    # Run suites
-    tap = TAPProducer()
+    # Run suites — output is redacted by default (public CI logs)
+    tap = TAPProducer(redact=build_redactor(ctx))
     for suite in suites:
         _run_suite(suite, ctx, tap)
 
@@ -136,4 +140,35 @@ def _run_suite(suite: str, ctx: CheckContext, tap: TAPProducer) -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:  # noqa: BLE001 — deliberate catch-all at the entry point
+        # A raw traceback can embed live identifiers (resolved IPs in
+        # socket errors, endpoint values in validation errors) and CI
+        # publishes stderr in public run logs. Emit a redacted one-liner
+        # instead; re-raise the full traceback only when the operator
+        # explicitly disabled redaction for local debugging.
+        if redact_disabled():
+            raise
+        # Best-effort value redaction straight from the raw environment —
+        # a CheckContext may not exist (the crash can BE its construction),
+        # and pattern redaction alone misses non-IP values like the cluster
+        # name or a bare DNS hostname.
+        msg = str(e)
+        env_values = sorted(
+            (
+                (os.environ.get(var, ""), f"[{var.lower()}]")
+                for var in (
+                    "CHECK_CLUSTER_ENDPOINT", "CHECK_ENDPOINT", "CHECK_NODE",
+                    "CHECK_PUBLIC_IP", "CHECK_TAILSCALE_IP",
+                    "CHECK_CLUSTER_NAME", "CHECK_TALOS_VERSION",
+                )
+                if len(os.environ.get(var, "")) >= 4
+            ),
+            key=lambda p: len(p[0]),
+            reverse=True,
+        )
+        for value, placeholder in env_values:
+            msg = msg.replace(value, placeholder)
+        print(f"FATAL: {type(e).__name__}: {redact_patterns(msg)}", file=sys.stderr)
+        sys.exit(2)

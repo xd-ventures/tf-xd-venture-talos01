@@ -6,9 +6,15 @@
 Produces TAP-compliant output for cluster validation checks.
 No external dependencies — TAP is simple enough to emit directly.
 
+Supports an optional redaction callable applied to every emitted line —
+CI publishes this output in public Actions logs and Job Summaries, so
+live infrastructure identifiers must not appear in it (see
+checks.build_redactor).
+
 See: https://testanything.org/tap-version-13-specification.html
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
@@ -21,8 +27,9 @@ class TestResult:
 
 
 class TAPProducer:
-    def __init__(self):
+    def __init__(self, redact: Callable[[str], str] | None = None):
         self.results: list[TestResult] = []
+        self._redact = redact or (lambda text: text)
 
     def ok(self, description: str) -> TestResult:
         r = TestResult(ok=True, description=description)
@@ -51,12 +58,12 @@ class TAPProducer:
         failures = 0
         for i, r in enumerate(self.results, 1):
             status = "ok" if r.ok else "not ok"
-            directive = f" # {r.directive}" if r.directive else ""
-            print(f"{status} {i} - {r.description}{directive}")
+            directive = f" # {self._redact(r.directive)}" if r.directive else ""
+            print(f"{status} {i} - {self._redact(r.description)}{directive}")
             if r.diagnostic:
                 print("  ---")
                 for line in r.diagnostic:
-                    print(f"  {line}")
+                    print(f"  {self._redact(line)}")
                 print("  ...")
             if not r.ok and "SKIP" not in (r.directive or ""):
                 failures += 1

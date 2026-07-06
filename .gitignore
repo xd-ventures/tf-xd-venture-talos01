@@ -47,3 +47,7 @@ Thumbs.db
 *.jpg
 *.jpeg
 *.gif
+
+# Python bytecode
+__pycache__/
+*.pyc
