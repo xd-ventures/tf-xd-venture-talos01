@@ -191,16 +191,16 @@ provider "registry.opentofu.org/tailscale/tailscale" {
 }
 
 provider "registry.terraform.io/adconnectdevops/shodan" {
-  version     = "0.1.15"
+  version     = "0.1.20"
   constraints = "~> 0.1"
   hashes = [
-    "h1:9Nq+sfGdi9zbaWf4bJEHbzQKzjeMCFp87jmY3OMgEyA=",
-    "h1:ABDfzPTNX9dJIhtyaLGYY4vqEpBJWfgoHaTUl5P45AA=",
-    "h1:baIyOrCKwnv4N1ES1cL7qkyvYxlKR1xYf9BjQCrbeEs=",
-    "h1:fuxNGupLCZntFEZCzNbZ1q6SQsuyhKDN2Xl1pNctlLs=",
-    "zh:409ca06fdb062860378bc124a3b25da6939db3b1aff2bc633d1ba6e448dfc896",
-    "zh:9e364bcf532b8d29b8db1ab8c6a5e6f50cc57c9e20e112def202c26295e56331",
-    "zh:b7ab4791ce13d168654103490dad20850a51cc7be6ee549ee079dbfb708ce791",
-    "zh:e45eb0268647cfc8b043f5210e40462e9d0a968851045b4ea1b958aad6db85aa",
+    "h1:DwQaBIagE8pEcjiC77sTXpqMgkXlvdYtjANpf8uEGTM=",
+    "h1:XJV8Qttaun1oYw1McoZnDBODkKwJvhwzNla+CKjcj/4=",
+    "h1:n7lMU/kWRYnbOnxIRCeElVqJIlJzn4XuDtV3GR/TXxw=",
+    "h1:y/S1NaUJoPoT08ZvFKr+pcFRiNJlU5uaIHGKV72p3FQ=",
+    "zh:0240368a44a3f51f4d728e6ff0488918cc228be3fa3d381d8aca3c9a767b2ad5",
+    "zh:80137bf68f0e4decaaf8dee9f513b673645af1c7893af879fe87623a7b948f52",
+    "zh:96566a17648c9f0190b794bfbe0b96524c26da3cd26f37005001a3d6ad6f9483",
+    "zh:fe5df56da941245682ed315307f78a931b2babfdb9ce2667f87e0d9fef0eb788",
   ]
 }
