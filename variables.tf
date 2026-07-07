@@ -174,6 +174,11 @@ variable "tailscale_ip" {
   EOT
   type        = string
   default     = ""
+
+  validation {
+    condition     = var.tailscale_ip == "" || can(cidrhost("${var.tailscale_ip}/32", 0))
+    error_message = "tailscale_ip must be a valid IPv4 address (e.g., 100.64.1.42) or empty."
+  }
 }
 
 variable "tailscale_device_lookup" {
