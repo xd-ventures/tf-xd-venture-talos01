@@ -14,6 +14,7 @@
 
 | Document | Description |
 |----------|-------------|
+| [GitOps Setup](guides/GITOPS_SETUP.md) | dflook plan/apply/drift workflows — secrets, enablement, caveats (ADR-0014) |
 | [OVH BYOI Guide](guides/OVH_BYOI_GUIDE.md) | OVH Bring Your Own Image process for Talos deployment |
 | [OVH Config Drive Reference](guides/OVH_CONFIG_DRIVE_REFERENCE.md) | In-depth reference on OVH bare metal config drive format and internals |
 | [Console Access](guides/CONSOLE_ACCESS.md) | iKVM, IPMI Serial Over LAN, and rescue mode access |

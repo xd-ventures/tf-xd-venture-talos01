@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# GitOps: apply the PR-approved plan after merge to main (ADR-0014, #279).
+#
+# dflook/tofu-apply locates the plan posted on the merged PR and refuses to
+# apply if the plan has changed since review — re-run after re-approval.
+#
+# Gated on the GITOPS_ENABLED repository variable — see
+# docs/guides/GITOPS_SETUP.md.
+name: Tofu Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.tf'
+      - 'templates/**'
+      - '.terraform.lock.hcl'
+
+# Shared group with the drift workflow: state-mutating operations are
+# serialized at the CI level regardless of S3 locking (ADR-0014 —
+# belt-and-braces on top of use_lockfile).
+concurrency:
+  group: tofu-state-ops
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Apply
+    if: vars.GITOPS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: production
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      OPENTOFU_VERSION: "1.11.5"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      OVH_ENDPOINT: ${{ vars.OVH_ENDPOINT }}
+      OVH_APPLICATION_KEY: ${{ secrets.OVH_APPLICATION_KEY }}
+      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
+      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+      TF_VAR_shodan_api_key: ${{ secrets.SHODAN_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # Applying machine-config changes requires reaching the Talos API,
+      # which is only reachable over Tailscale (firewall enabled).
+      - name: Connect Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Write configuration from secrets
+        env:
+          BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
+          TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
+        run: |
+          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
+          chmod 600 backend.tfvars terraform.tfvars
+
+      - name: Tofu apply
+        uses: dflook/tofu-apply@c254eb5b2e48978c05587373100d26b604c2182d # v2.2.3
+        with:
+          label: talos01
+          backend_config_file: backend.tfvars

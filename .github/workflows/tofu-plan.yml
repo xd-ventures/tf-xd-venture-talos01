@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# GitOps: post `tofu plan` as a PR comment (ADR-0014, #279).
+#
+# Gated on the GITOPS_ENABLED repository variable — set it to "true" only
+# after populating the production-environment secrets listed in
+# docs/guides/GITOPS_SETUP.md. Fork PRs cannot access secrets, so they get
+# no plan (expected; solo-maintainer repo).
+#
+# CAVEAT (public repo): plan output on changes may include infrastructure
+# identifiers — see the hardening issue referenced in GITOPS_SETUP.md.
+name: Tofu Plan
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: tofu-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan
+    if: vars.GITOPS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      OPENTOFU_VERSION: "1.11.5"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      OVH_ENDPOINT: ${{ vars.OVH_ENDPOINT }}
+      OVH_APPLICATION_KEY: ${{ secrets.OVH_APPLICATION_KEY }}
+      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
+      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+      TF_VAR_shodan_api_key: ${{ secrets.SHODAN_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # Refresh may need to reach the Talos/K8s APIs, which are only
+      # reachable over Tailscale (firewall enabled).
+      - name: Connect Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      # backend.tfvars and terraform.tfvars are gitignored (they carry
+      # infrastructure identifiers) — materialize them from secrets.
+      - name: Write configuration from secrets
+        env:
+          BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
+          TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
+        run: |
+          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
+          chmod 600 backend.tfvars terraform.tfvars
+
+      - name: Tofu plan
+        uses: dflook/tofu-plan@3f5dc358343fb58cd60f83b019e810315aa8258f # v2.2.3
+        with:
+          label: talos01
+          backend_config_file: backend.tfvars
