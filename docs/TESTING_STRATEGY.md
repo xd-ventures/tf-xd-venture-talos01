@@ -252,7 +252,7 @@ echo "=== Phase 2: Deploy ==="
 tofu apply tfplan
 
 echo "=== Phase 3: Wait for Tailscale ==="
-HOSTNAME=$(tofu output -raw tailscale_hostname)
+HOSTNAME=$(tofu output -raw tailscale_fqdn)
 echo "Waiting for $HOSTNAME to appear on Tailscale..."
 for i in {1..60}; do
   if tailscale status | grep -q "$HOSTNAME"; then

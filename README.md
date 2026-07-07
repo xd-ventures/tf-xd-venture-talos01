@@ -192,9 +192,9 @@ $ tofu apply
   Plan: 13 to add, 0 to change, 0 to destroy.
 
   Changes to Outputs:
-  + cluster_endpoint       = "https://talos-cluster.example-tailnet.ts.net:6443"
+  + cluster_endpoint_actual = "https://talos-cluster.example-tailnet.ts.net:6443"
   + server_ip              = (known after apply)
-  + tailscale_hostname     = "talos-cluster.example-tailnet.ts.net"
+  + tailscale_fqdn         = "talos-cluster.example-tailnet.ts.net"
   + zfs_pool_info          = { status = "ENABLED", pool_name = "tank", topology = "mirror" }
 
   Do you want to perform these actions?
@@ -223,13 +223,13 @@ $ tofu apply
 
   Outputs:
 
-  cluster_endpoint       = "https://talos-cluster.example-tailnet.ts.net:6443"
+  cluster_endpoint_actual = "https://talos-cluster.example-tailnet.ts.net:6443"
   cluster_health_status  = "skipped (Tailscale enabled - verify manually)"
   firewall_enabled       = false
   firewall_warning       = "WARNING: Firewall is DISABLED — enable with: enable_firewall = true"
   server_ip              = "203.0.113.42"
   tailscale_enabled      = true
-  tailscale_hostname     = "talos-cluster.example-tailnet.ts.net"
+  tailscale_fqdn         = "talos-cluster.example-tailnet.ts.net"
 ```
 
 ```console

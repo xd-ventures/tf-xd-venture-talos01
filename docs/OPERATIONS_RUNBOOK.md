@@ -51,8 +51,8 @@ destructive-upgrade rationale.
 
 4. **Verify Tailscale connectivity**
    ```bash
-   tailscale status | grep $(tofu output -raw tailscale_hostname | cut -d. -f1)
-   tailscale ping $(tofu output -raw tailscale_hostname)
+   tailscale status | grep $(tofu output -raw tailscale_fqdn | cut -d. -f1)
+   tailscale ping $(tofu output -raw tailscale_fqdn)
    ```
 
 5. **Review the Talos release notes** for the target version at
@@ -78,7 +78,7 @@ tofu apply
 
 1. **Wait for Tailscale device to appear** (~3–5 minutes after reinstall completes)
    ```bash
-   tailscale status | grep $(tofu output -raw tailscale_hostname | cut -d. -f1)
+   tailscale status | grep $(tofu output -raw tailscale_fqdn | cut -d. -f1)
    ```
 
 2. **Verify Talos version**

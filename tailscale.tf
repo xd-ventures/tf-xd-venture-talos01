@@ -107,12 +107,5 @@ data "tailscale_device" "talos_node" {
   depends_on = [ovh_dedicated_server_reinstall_task.talos]
 }
 
-output "tailscale_device_id" {
-  description = "Tailscale device ID (from data source lookup)"
-  value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].id : null
-}
-
-output "tailscale_device_ip" {
-  description = "Tailscale device IP (from data source lookup, always current)"
-  value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].addresses[0] : null
-}
+# NOTE: the tailscale_device_id / tailscale_device_ip outputs live in
+# outputs.tf with the rest of the output values.
