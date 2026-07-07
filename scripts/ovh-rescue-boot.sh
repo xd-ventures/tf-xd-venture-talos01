@@ -34,6 +34,7 @@ echo "=========================================="
 export SERVICE_NAME
 python3 << 'EOF'
 import ovh
+from ovh.exceptions import ResourceNotFoundError
 import os
 import time
 import sys
@@ -63,20 +64,37 @@ try:
     task_id = result.get('taskId')
     print(f"Reboot task: {task_id}")
 
-    # Wait for reboot to complete
-    print("Waiting for reboot to complete...")
-    for i in range(60):  # 10 minutes max
-        task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
+    # Wait for reboot task to complete. Loop exhaustion is a FAILURE —
+    # previously it fell through and reported success (#245). Transient API
+    # errors are retried until the deadline instead of aborting.
+    print("Waiting for reboot task to complete...")
+    deadline = time.time() + 600  # 10 minutes
+    completed = False
+    while time.time() < deadline:
+        try:
+            task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
+        except ResourceNotFoundError:
+            print(f"\n\u274c Task {task_id} not found (404)", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"  API error (will retry): {e}")
+            time.sleep(10)
+            continue
         status = task.get('status')
         print(f"  Status: {status}")
 
         if status == 'done':
+            completed = True
             break
-        elif status == 'error':
-            print(f"Reboot failed: {task.get('comment')}")
+        elif status in ('error', 'cancelled', 'canceled', 'ovhError', 'customerError'):
+            print(f"Reboot task {status}: {task.get('comment')}")
             sys.exit(1)
 
         time.sleep(10)
+
+    if not completed:
+        print("\n\u274c Reboot task did not complete within 10 minutes", file=sys.stderr)
+        sys.exit(1)
 
     # Get server info including rescue credentials
     print("\nServer is rebooting into rescue mode.")

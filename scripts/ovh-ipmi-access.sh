@@ -40,38 +40,55 @@ client = ovh.Client()
 service_name = os.environ['SERVICE_NAME']
 
 try:
-    # Check IPMI availability
+    # Check IPMI availability. Feature keys and access types come from the
+    # OVH API schema (IpmiAccessTypeEnum) — the old values ('kvmipHtml5',
+    # ttl=30) were invalid and the request failed on every run (#245).
     print("Checking IPMI availability...")
     ipmi = client.get(f'/dedicated/server/{service_name}/features/ipmi')
-    print(f"IPMI available: {ipmi.get('activated', False)}")
-    print(f"KVM available: {ipmi.get('supportedFeatures', {}).get('kvmipHtml5', False)}")
-    print(f"SOL available: {ipmi.get('supportedFeatures', {}).get('serialOverLanSshKey', False)}")
+    features = ipmi.get('supportedFeatures', {})
+    kvm_supported = features.get('kvmipHtml5URL', False)
+    sol_supported = features.get('serialOverLanSshKey', False)
+    print(f"IPMI activated: {ipmi.get('activated', False)}")
+    print(f"KVM (kvmipHtml5URL) supported: {kvm_supported}")
+    print(f"SOL (serialOverLanSshKey) supported: {sol_supported}")
 
     if not ipmi.get('activated'):
-        print("\n❌ IPMI is not activated on this server")
+        print("\n\u274c IPMI is not activated on this server", file=sys.stderr)
+        sys.exit(1)
+    if not kvm_supported:
+        print("\n\u274c KVM-over-IP (kvmipHtml5URL) is not supported on this server", file=sys.stderr)
         sys.exit(1)
 
-    # Request HTML5 KVM access
-    print("\nRequesting KVM access...")
-    try:
-        result = client.post(
-            f'/dedicated/server/{service_name}/features/ipmi/access',
-            type='kvmipHtml5',
-            ttl=30  # minutes
-        )
-        print(f"KVM access requested. Check OVH console for access URL.")
-    except Exception as e:
-        print(f"KVM request failed: {e}")
+    # Request HTML5 KVM access. ttl must be in CacheTTLEnum {1,3,5,10,15}.
+    print("\nRequesting KVM access (ttl 15 min)...")
+    client.post(
+        f'/dedicated/server/{service_name}/features/ipmi/access',
+        type='kvmipHtml5URL',
+        ttl=15,
+    )
 
-    # For automated access, use ovh-kvm tool:
-    print("\n" + "="*50)
-    print("For command-line KVM access, install ovh-kvm:")
-    print("  pip install ovh-kvm")
-    print("  git clone https://github.com/amilabs/ovh-kvm")
-    print("")
-    print("Then run:")
-    print(f"  python ovh-kvm.py {service_name}")
-    print("="*50)
+    # The access URL is generated asynchronously — poll for it.
+    print("Waiting for the access URL...")
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        try:
+            access = client.get(
+                f'/dedicated/server/{service_name}/features/ipmi/access',
+                type='kvmipHtml5URL',
+            )
+            value = access.get('value')
+            if value:
+                expiry = access.get('expiration', 'unknown')
+                print(f"\n\u2705 KVM console URL (expires {expiry}):\n\n  {value}\n")
+                print("Open it in a browser for the HTML5 console. For LLM-driven")
+                print("console screenshots use ovh-ikvm-mcp (see CLAUDE.md / README).")
+                sys.exit(0)
+        except ovh.exceptions.APIError:
+            pass  # not generated yet
+        time.sleep(5)
+
+    print("\n\u274c Timed out waiting for the KVM access URL (120s)", file=sys.stderr)
+    sys.exit(1)
 
 except Exception as e:
     print(f"Error: {e}", file=sys.stderr)
