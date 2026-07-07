@@ -34,6 +34,7 @@ echo "=========================================="
 export SERVICE_NAME
 python3 << 'EOF'
 import ovh
+from ovh.exceptions import ResourceNotFoundError
 import os
 import time
 import sys
@@ -72,6 +73,9 @@ try:
     while time.time() < deadline:
         try:
             task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
+        except ResourceNotFoundError:
+            print(f"\n\u274c Task {task_id} not found (404)", file=sys.stderr)
+            sys.exit(1)
         except Exception as e:
             print(f"  API error (will retry): {e}")
             time.sleep(10)
