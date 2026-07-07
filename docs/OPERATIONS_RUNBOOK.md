@@ -117,11 +117,34 @@ If the upgrade fails:
    ```
 3. If the server is unreachable, see [Failure Recovery](#failure-recovery) below.
 
-### Non-Destructive Upgrade Alternative
+### In-Place Upgrades (`upgrade_mode = "upgrade"`)
 
-For upgrades that preserve etcd state and ZFS pools, use `talosctl upgrade` directly
-instead of `tofu apply`. This only replaces the Talos OS image without triggering
-a full reinstall:
+ADR-0013 Phase 2 (#210): with `upgrade_mode = "upgrade"` in terraform.tfvars,
+`talos_version` / `talos_extensions` changes no longer reinstall — `tofu apply`
+runs `talosctl upgrade --stage --preserve --wait` in-place. etcd, ZFS pools,
+and the Tailscale identity survive; A/B boot partitions give automatic
+rollback on a failed boot. Requirements: `talosctl` and a valid talosconfig
+(`./talosconfig` or `$TALOSCONFIG`) wherever `tofu apply` runs (not wired
+into the GitOps CI runner).
+
+> **Flipping `upgrade_mode` (either direction) restructures the reinstall
+> trigger and cascades ONE full reinstall on the next apply.** Choose one:
+> 1. Accept it: flip during a planned maintenance window (back up ZFS data
+>    first) — the reinstall resets everything onto the new mode.
+> 2. Avoid it with state surgery (#268 procedure): after changing the
+>    variable, pull the state, overwrite `terraform_data.reinstall_trigger`'s
+>    `triggers_replace` with the values from a fresh targeted plan **keeping
+>    the resource id unchanged**, bump the serial, push, and verify
+>    `tofu plan` shows only the `talos_upgrade` resource change. Never
+>    replace the trigger resource itself — its id feeds the config-drive
+>    instance-id and would force the reinstall anyway.
+
+The upgrade resource skips itself when the node already runs the target
+version and schematic, so flipping the mode does not by itself reboot
+anything.
+
+Manual fallback (works in any mode, e.g. for testing a version before
+committing it to tfvars):
 
 ```bash
 talosctl upgrade --image $(tofu output -raw talos_installer_image) \
@@ -135,9 +158,9 @@ talosctl upgrade --image $(tofu output -raw talos_installer_image) \
 > `--preserve` keeps the EPHEMERAL partition — on a single-node cluster etcd cannot
 > rebuild from peers, so omitting it loses the cluster.
 
-> **Caution**: The Terraform state will not reflect the new version. Run `tofu plan`
-> afterward to check for drift. In-place upgrades managed by OpenTofu are planned in
-> [#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210).
+> **Caution**: after a manual upgrade, `tofu plan` will show drift in
+> reinstall mode (state does not reflect the new version). In upgrade mode
+> the guard reconciles cleanly.
 
 ---
 

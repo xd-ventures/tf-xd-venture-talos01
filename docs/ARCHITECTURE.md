@@ -163,8 +163,8 @@ This project deploys a **single control plane node** with `allowSchedulingOnCont
 The upgrade lifecycle is defined in [ADR-0013](adr/0013-upgrade-lifecycle-architecture.md):
 
 - **Inline-manifest content changes** (Cilium install Job, ZFS pool Job — e.g. Renovate image bumps) are applied live by `talos_machine_configuration_apply` during `tofu apply` — no reinstall (Phase 1, implemented; manifest content is deliberately excluded from the reinstall trigger). Note: certSANs and extraHostEntries changes remain in `triggers_replace` (main.tf) and still cause a full reinstall.
-- **Version upgrades** (`talos_version` change) via `tofu apply` trigger a full OVH BYOI reinstall. This wipes the disk including etcd state and ZFS pools. Expected downtime: 15-30 minutes. Workloads redeploy automatically via ArgoCD.
-- **Non-destructive OS upgrades** that preserve data: `talosctl upgrade --image $(tofu output -raw talos_installer_image) --stage --preserve --wait`. Both `--stage` and `--preserve` are mandatory on this cluster (ZFS-on-system-disk, single-node etcd) — see ADR-0013. OpenTofu-managed in-place upgrades are planned in [#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210).
+- **Version upgrades** (`talos_version` change) via `tofu apply` trigger a full OVH BYOI reinstall in the default `reinstall` mode. This wipes the disk including etcd state and ZFS pools. Expected downtime: 15-30 minutes. Workloads redeploy automatically via ArgoCD.
+- **In-place OS upgrades** (Phase 2, implemented): with `upgrade_mode = "upgrade"`, version/extension changes run `talosctl upgrade --stage --preserve --wait` via OpenTofu instead of reinstalling — etcd and ZFS survive, A/B partitions give rollback ([#210](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/210)). Both flags are mandatory on this cluster (ZFS-on-system-disk, single-node etcd). The default remains `"reinstall"`; flipping the mode is a one-time operator event (see the Operations Runbook).
 
 See [ADR-0012](adr/0012-single-node-destructive-upgrades.md) for the original destructive-upgrade rationale.
 

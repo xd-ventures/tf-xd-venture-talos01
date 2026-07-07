@@ -65,4 +65,8 @@ extra work.
 - **Tailscale**: runners join the tailnet as ephemeral `tag:ci` nodes (same
   pattern as cluster-checks) because the Talos/K8s APIs are only reachable
   over Tailscale with the firewall enabled.
+- **In-place upgrades not wired**: `upgrade_mode = "upgrade"` (#210) runs
+  `talosctl upgrade` via local-exec, and the apply runner has no talosctl or
+  talosconfig — run version-bump applies locally while in upgrade mode, or
+  extend `tofu-apply.yml` first.
 - Rollback: set `GITOPS_ENABLED` to `false` — all three workflows skip.

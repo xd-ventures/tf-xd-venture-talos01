@@ -57,6 +57,35 @@ variable "kubernetes_version" {
   }
 }
 
+variable "upgrade_mode" {
+  description = <<-EOT
+    How talos_version / talos_extensions changes are applied (ADR-0013 Phase 2):
+
+    "reinstall" (default): version/extension changes trigger a full OVH BYOI
+    reinstall — wipes etcd and ZFS pools (back up first; see the runbook).
+
+    "upgrade": version/extension changes run `talosctl upgrade --stage
+    --preserve --wait` in-place via a local-exec provisioner — etcd, ZFS
+    pools, and Tailscale identity survive; A/B boot partitions give automatic
+    rollback. Requires talosctl and a valid talosconfig (./talosconfig or
+    $TALOSCONFIG) wherever `tofu apply` runs — NOT yet wired into the GitOps
+    CI runner.
+
+    WARNING: FLIPPING this value restructures the reinstall trigger list and
+    therefore cascades ONE full reinstall on the next apply (in either
+    direction). Flip it bundled with a planned reinstall, or use the
+    state-surgery procedure documented in the Operations Runbook (#268) to
+    flip without one.
+  EOT
+  type        = string
+  default     = "reinstall"
+
+  validation {
+    condition     = contains(["reinstall", "upgrade"], var.upgrade_mode)
+    error_message = "upgrade_mode must be 'reinstall' or 'upgrade'."
+  }
+}
+
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
   type        = string
