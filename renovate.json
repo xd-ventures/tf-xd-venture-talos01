@@ -4,7 +4,8 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests",
     ":gitSignOff",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    ":enablePreCommit"
   ],
   "semanticCommitType": "chore",
   "labels": [
@@ -33,7 +34,18 @@
         "/variables\\.tf$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( registryUrl=(?<registryUrl>.*?))?\\n.*?default\\s*=\\s*\"(?<currentValue>.*?)\""
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( registryUrl=(?<registryUrl>.*?))?\\n.*?default\\s*=\\s*\"(?<currentValue>[^@\"]*)\""
+      ],
+      "description": "Version pins in variables.tf (plain values; image tag@digest pins are handled by the manager below)"
+    },
+    {
+      "customType": "regex",
+      "description": "Container image pins in variables.tf as repo:tag@digest \u2014 tag and digest update atomically",
+      "managerFilePatterns": [
+        "/variables\\.tf$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\n\\s*default\\s*=\\s*\"(?:[\\w./-]+:)?(?<currentValue>[\\w.-]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
       ]
     }
   ],
@@ -87,9 +99,26 @@
       ],
       "matchPackageNames": [
         "siderolabs/talos",
-        "tailscale/tailscale"
+        "tailscale/tailscale",
+        "AdconnectDevOps/shodan"
       ],
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Docker image pins: delay 3 days (CI tags churn)",
+      "matchDatasources": [
+        "docker"
+      ],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Cilium CLI bumps do not roll out live until #289",
+      "matchPackageNames": [
+        "quay.io/cilium/cilium-cli-ci"
+      ],
+      "prBodyNotes": [
+        "**Note (#289)**: the cilium-install Job is not idempotent \u2014 this bump takes effect at the next reinstall; applying it re-runs the Job, which fails harmlessly against the running installation."
+      ]
     }
   ]
 }

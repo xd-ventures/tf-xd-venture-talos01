@@ -52,7 +52,7 @@ spec:
       hostPID: true
       containers:
         - name: zfs-pool-setup
-          image: alpine:${alpine_image}@${alpine_digest}
+          image: ${zfs_pool_job_image}
           securityContext:
             privileged: true
           env:

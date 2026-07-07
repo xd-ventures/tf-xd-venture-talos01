@@ -31,8 +31,10 @@ terraform {
       version = "~> 7.0"
     }
     shodan = {
+      # Explicit registry hostname: this provider is not on the OpenTofu
+      # registry mirror. Pinned to the patch series — pre-1.0 minors can break.
       source  = "registry.terraform.io/AdconnectDevOps/shodan"
-      version = "~> 0.1"
+      version = "~> 0.1.20"
     }
   }
 }
