@@ -18,8 +18,8 @@ output "server_name" {
   value       = ovh_dedicated_server.talos01.display_name
 }
 
-output "server_state" {
-  description = "The current state of the bare metal server"
+output "server_state_actual" {
+  description = "The current state reported by OVH (may differ from var.server_state, the desired state)"
   value       = ovh_dedicated_server.talos01.state
 }
 
@@ -59,7 +59,9 @@ output "efi_bootloader_path" {
   value       = local.efi_bootloader_path_grub
 }
 
-output "cluster_endpoint" {
+# Named *_actual to avoid shadowing var.cluster_endpoint, which holds the
+# pre-resolution template (possibly with the <server-ip> placeholder).
+output "cluster_endpoint_actual" {
   description = "Kubernetes API endpoint URL (actual endpoint used in cluster config)"
   value       = local.actual_cluster_endpoint
 }
@@ -128,9 +130,24 @@ output "tailscale_enabled" {
   value       = local.tailscale_enabled
 }
 
-output "tailscale_hostname" {
-  description = "Full Tailscale hostname (ts.net) for accessing the cluster"
-  value       = local.tailscale_ts_net_hostname != "" ? local.tailscale_ts_net_hostname : "Tailscale not configured"
+# Named tailscale_fqdn to avoid shadowing var.tailscale_hostname (the short
+# machine name); this is the full <hostname>.<tailnet>.ts.net form.
+output "tailscale_fqdn" {
+  description = "Full Tailscale hostname (ts.net) for accessing the cluster. Null when Tailscale is not configured."
+  value       = local.tailscale_ts_net_hostname != "" ? local.tailscale_ts_net_hostname : null
+}
+
+# Tailscale device outputs (from the device lookup data source; null when
+# lookup is disabled or Tailscale is not configured). Moved here from
+# tailscale.tf so all outputs live in outputs.tf.
+output "tailscale_device_id" {
+  description = "Tailscale device ID (from data source lookup)"
+  value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].id : null
+}
+
+output "tailscale_device_ip" {
+  description = "Tailscale device IP (from data source lookup, always current)"
+  value       = length(data.tailscale_device.talos_node) > 0 ? data.tailscale_device.talos_node[0].addresses[0] : null
 }
 
 output "tailscale_access_info" {
@@ -143,7 +160,7 @@ output "tailscale_access_info" {
     # NOTE: talosctl's gRPC resolver doesn't support MagicDNS, so we resolve the IP first
     talosctl_command = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP"
     } : {
-    ts_net_hostname    = "Not configured"
+    ts_net_hostname    = null
     talos_api_endpoint = "https://${local.cluster_ip}:50000"
     k8s_api_endpoint   = "https://${local.cluster_ip}:6443"
     security_note      = "APIs accessible on public IP. Consider enabling Tailscale for secure access."
@@ -181,16 +198,23 @@ output "firewall_status" {
 
 # Verification commands (dynamically generated with actual values)
 output "firewall_verification_commands" {
-  description = "Commands to verify firewall is working (after deploy with enable_firewall=true)"
+  description = "Commands to verify firewall is working (after deploy with enable_firewall=true). Command keys are null until Tailscale is configured and the firewall is enabled — see status."
   value = local.tailscale_enabled && var.enable_firewall ? {
+    status               = "Firewall enabled — run each command below to verify"
     test_public_blocked  = "curl -k --connect-timeout 5 https://${local.cluster_ip}:6443/version  # Should FAIL/timeout"
     test_tailscale_works = "curl -k https://$(dig +short ${local.tailscale_ts_net_hostname}):6443/version  # Should SUCCEED"
     test_talos_api       = "TSIP=$(dig +short ${local.tailscale_ts_net_hostname}) && talosctl --endpoints $TSIP --nodes $TSIP version"
     recovery_note        = "If locked out: use OVH iKVM console or rescue mode to edit config drive"
-    } : local.tailscale_enabled ? {
-    note = "Firewall disabled. Set enable_firewall = true and run tofu apply to enable (triggers reinstall)."
     } : {
-    error = "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
+    status = local.tailscale_enabled ? (
+      "Firewall disabled. Set enable_firewall = true and run tofu apply to enable (triggers reinstall)."
+      ) : (
+      "Tailscale not configured. Set tailscale_hostname and tailscale_tailnet first."
+    )
+    test_public_blocked  = null
+    test_tailscale_works = null
+    test_talos_api       = null
+    recovery_note        = null
   }
 }
 
@@ -208,8 +232,8 @@ output "argocd_admin_password" {
 }
 
 output "argocd_server_url" {
-  description = "ArgoCD server URL (internal cluster address)"
-  value       = var.argocd_enabled ? "https://argocd-server.argocd.svc.cluster.local" : "ArgoCD not enabled"
+  description = "ArgoCD server URL (internal cluster address). Null when ArgoCD is disabled."
+  value       = var.argocd_enabled ? "https://argocd-server.argocd.svc.cluster.local" : null
 }
 
 output "argocd_access_info" {
@@ -236,7 +260,16 @@ output "argocd_access_info" {
     helm_chart_version = var.argocd_chart_version
     namespace          = "argocd"
     } : {
-    status = "ArgoCD not enabled. Set argocd_enabled = true to deploy."
+    status               = "ArgoCD not enabled. Set argocd_enabled = true to deploy."
+    port_forward_command = null
+    ui_url               = null
+    username             = null
+    get_password_command = null
+    cli_login_command    = null
+    security_note        = null
+    password_rotation    = null
+    helm_chart_version   = null
+    namespace            = null
   }
 }
 
@@ -284,6 +317,7 @@ output "argocd_guestbook_status" {
   description = "Status of the ArgoCD guestbook example application"
   value = var.argocd_enabled && var.argocd_deploy_guestbook ? {
     deployed     = true
+    note         = null
     app_name     = "guestbook"
     namespace    = "default"
     sync_policy  = "Automated (prune + self-heal)"
@@ -292,7 +326,14 @@ output "argocd_guestbook_status" {
     view_command = "argocd app get guestbook"
     sync_command = "argocd app sync guestbook"
     } : {
-    deployed = false
-    note     = var.argocd_enabled ? "Set argocd_deploy_guestbook = true to deploy the example app" : "ArgoCD not enabled"
+    deployed     = false
+    note         = var.argocd_enabled ? "Set argocd_deploy_guestbook = true to deploy the example app" : "ArgoCD not enabled"
+    app_name     = null
+    namespace    = null
+    sync_policy  = null
+    source_repo  = null
+    source_path  = null
+    view_command = null
+    sync_command = null
   }
 }

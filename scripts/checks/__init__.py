@@ -179,7 +179,7 @@ class CheckContext:
             outputs, "argocd_enabled", False
         )
         ctx.cluster_endpoint = ctx.cluster_endpoint or _get(
-            outputs, "cluster_endpoint", ""
+            outputs, "cluster_endpoint_actual", ""
         )
 
         tailscale_ip = _validate_host(
