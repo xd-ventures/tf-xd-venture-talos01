@@ -28,7 +28,7 @@ The workflows are **inert until you flip the switch**: every job is gated on
 
    | Secret | Content |
    |--------|---------|
-   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 credentials for the state bucket — create a **dedicated least-privilege user** scoped to the bucket, not your personal keys |
+   | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 credentials for the state bucket — create a **dedicated least-privilege user** scoped to the bucket, not your personal keys. `scripts/rotate-s3-credentials.py` provisions/rotates and pushes these two automatically without exposing the secret. |
    | `BACKEND_TFVARS` | Verbatim contents of your local `backend.tfvars` |
    | `TERRAFORM_TFVARS` | Verbatim contents of your local `terraform.tfvars` (keep in sync when you change it!) |
    | `OVH_APPLICATION_KEY` / `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` | OVH API credentials (see the [BYOI guide](OVH_BYOI_GUIDE.md#required-api-permissions) for the minimum access rules) |
