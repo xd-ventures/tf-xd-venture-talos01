@@ -68,6 +68,14 @@ spec:
             - ipam.mode=kubernetes
             - --set
             - kubeProxyReplacement=true
+            # Datapath pinned explicitly (ADR-0015): these match the cilium-cli
+            # defaults today, but an unpinned default could silently flip the
+            # datapath on the next reinstall. VXLAN is the deliberate choice —
+            # idle on single node, correct for multi-node over Tailscale.
+            - --set
+            - routingMode=tunnel
+            - --set
+            - tunnelProtocol=vxlan
             - --set
             - securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}
             - --set
@@ -86,8 +94,9 @@ spec:
             - hubble.relay.enabled=true
             - --set
             - hubble.ui.enabled=true
-            - --set
-            - gatewayAPI.enabled=true
+            # gatewayAPI.enabled deliberately absent: the Gateway API CRDs were
+            # never installed, so the flag was inert (ADR-0015). Reintroduce
+            # together with the CRDs manifest when public ingress lands.
 ---
 # Post-install cleanup: delete the cluster-admin CRB and ServiceAccount
 # to eliminate the lingering privilege escalation path.

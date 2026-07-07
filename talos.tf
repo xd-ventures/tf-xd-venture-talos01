@@ -194,7 +194,8 @@ locals {
   }) : ""
 
   # Cilium installation manifest
-  # Uses Cilium CLI job to install Cilium with native routing mode
+  # Uses Cilium CLI job to install Cilium with VXLAN tunnel routing
+  # (pinned explicitly — see ADR-0015)
   # See templates/cilium-install-job.yaml.tftpl for the full manifest
   cilium_install_manifest = templatefile("${path.module}/templates/cilium-install-job.yaml.tftpl", {
     cilium_cli_version = var.cilium_cli_version
