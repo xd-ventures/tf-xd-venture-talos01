@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# GitOps: daily drift detection (ADR-0014, #279).
+#
+# dflook/tofu-check fails when live infrastructure differs from the
+# configuration. On failure a `drift`-labeled issue is opened (or the
+# existing one gets a comment); when drift clears, open drift issues are
+# closed automatically.
+#
+# Inherent limitation: only OpenTofu-managed resources and provider-read
+# attributes are covered (ADR-0014).
+#
+# Gated on the GITOPS_ENABLED repository variable — see
+# docs/guides/GITOPS_SETUP.md.
+name: Tofu Drift
+
+on:
+  schedule:
+    # Daily, offset from the 06:00 cluster-checks cron
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+# Shared group with the apply workflow: never run concurrently with an apply.
+concurrency:
+  group: tofu-state-ops
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Drift Detection
+    if: vars.GITOPS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      issues: write
+    env:
+      OPENTOFU_VERSION: "1.11.5"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      OVH_ENDPOINT: ${{ vars.OVH_ENDPOINT }}
+      OVH_APPLICATION_KEY: ${{ secrets.OVH_APPLICATION_KEY }}
+      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
+      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
+      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+      TF_VAR_shodan_api_key: ${{ secrets.SHODAN_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Write configuration from secrets
+        env:
+          BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
+          TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
+        run: |
+          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
+          chmod 600 backend.tfvars terraform.tfvars
+
+      - name: Tofu check
+        id: check
+        uses: dflook/tofu-check@911a3cb9355a0f21f333b3fb4ec506df6a2e9a52 # v2.2.3
+        with:
+          label: talos01
+          backend_config_file: backend.tfvars
+
+      - name: Open or update drift issue
+        if: failure() && steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --label drift --state open \
+            --search "in:title \"Infrastructure drift detected\"" --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+              --body "Drift still present on $(date -u +%F). Run: $RUN_URL"
+          else
+            BODY="Scheduled drift detection found live infrastructure differing from configuration. See the run log for the diff (public repo — the log may include infrastructure identifiers): $RUN_URL"
+            BODY="$BODY"$'\n\n'"Resolve by either applying the configuration (tofu apply) or updating the configuration to match reality, then let the next scheduled run close this issue."
+            gh issue create --repo "$GITHUB_REPOSITORY" --label drift \
+              --title "Infrastructure drift detected" \
+              --body "$BODY"
+          fi
+
+      - name: Close drift issues when clear
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          for N in $(gh issue list --repo "$GITHUB_REPOSITORY" --label drift --state open \
+            --search "in:title \"Infrastructure drift detected\"" --json number --jq '.[].number'); do
+            gh issue close "$N" --repo "$GITHUB_REPOSITORY" \
+              --comment "Drift cleared — scheduled check passed: $RUN_URL"
+          done

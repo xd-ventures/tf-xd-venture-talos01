@@ -286,11 +286,17 @@ Current CI coverage:
 
 | Workflow | Trigger | Coverage |
 |----------|---------|----------|
-| `pr-validation.yml` | PRs touching `*.tf`, `scripts/`, `templates/`, lint/hook configs | Pre-commit hooks (fmt, validate, tflint, shellcheck, gitleaks, license headers) + Trivy IaC scan |
+| `pr-validation.yml` | Every PR to main | Pre-commit hooks (fmt, validate, tflint, shellcheck, gitleaks, license headers) + Trivy IaC scan |
+| `tofu-plan.yml` | PRs to main (gated on `GITOPS_ENABLED`) | `tofu plan` posted as a PR comment (ADR-0014) |
+| `tofu-apply.yml` | Push to main, `*.tf`/templates (gated) | Applies the PR-approved plan (ADR-0014) |
+| `tofu-drift.yml` | Daily cron + manual (gated) | Drift detection; opens/closes a `drift` issue (ADR-0014) |
 | `cluster-checks.yml` | Daily cron + manual | Live cluster validation (smoke suite) against production |
 | `codeql.yml` | Push/PR to main + weekly cron | Static analysis (Python, Actions) |
 | `sbom.yml` | Push to main + releases | SBOM generation + Trivy vulnerability scan |
 | `scorecard.yml` | Weekly + push to main | OpenSSF Scorecard supply-chain posture |
+
+GitOps workflow setup (secrets, the `GITOPS_ENABLED` switch, caveats):
+[docs/guides/GITOPS_SETUP.md](guides/GITOPS_SETUP.md).
 
 ### Full Deployment Testing (Planned)
 
