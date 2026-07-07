@@ -75,7 +75,7 @@ jobs:
         id: check
         uses: dflook/tofu-check@911a3cb9355a0f21f333b3fb4ec506df6a2e9a52 # v2.2.3
         with:
-          label: talos01
+          # tofu-check does not accept a `label` input (unlike tofu-plan/apply)
           backend_config_file: backend.tfvars
 
       - name: Open or update drift issue
