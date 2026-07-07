@@ -41,7 +41,7 @@ output "talos_image_url" {
 
 output "talos_installer_image" {
   description = "The Talos installer image for upgrades"
-  value       = "factory.talos.dev/installer/${talos_image_factory_schematic.this.id}:${var.talos_version}"
+  value       = local.talos_installer_image
 }
 
 output "installation_image_url" {

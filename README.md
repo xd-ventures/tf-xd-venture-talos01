@@ -416,8 +416,9 @@ The upgrade lifecycle is defined in [ADR-0013](docs/adr/0013-upgrade-lifecycle-a
 # Update talos_version in terraform.tfvars
 talos_version = "v1.13.0"
 
-# Apply - this triggers reinstall (wipes etcd and ZFS pools; see the runbook
-# for the non-destructive talosctl upgrade alternative)
+# Apply. With upgrade_mode = "reinstall" (default) this triggers a full
+# reinstall (wipes etcd and ZFS pools). With upgrade_mode = "upgrade"
+# (ADR-0013 Phase 2) it upgrades in place via talosctl — data survives.
 tofu apply
 ```
 

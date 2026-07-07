@@ -99,6 +99,10 @@ locals {
   talos_nodes = length(var.talos_nodes) > 0 ? var.talos_nodes : [local.default_api_ip
   ]
 
+  # Talos factory installer image — used by the in-place upgrade resource
+  # and the talos_installer_image output (single source of truth).
+  talos_installer_image = "factory.talos.dev/installer/${talos_image_factory_schematic.this.id}:${var.talos_version}"
+
   # Tailscale auth key — read directly from the key resource.
   # The key is consumed once on boot (TS_AUTH_ONCE=true) and expires after 1h.
   # On reinstall, replace_triggered_by on the key resource generates a fresh one.
@@ -401,7 +405,10 @@ data "talos_cluster_health" "this" {
 #
 # See ADR-0013 for the upgrade lifecycle architecture.
 resource "talos_machine_configuration_apply" "controlplane" {
-  depends_on = [talos_machine_bootstrap.this]
+  # Serialized after the in-place upgrade: on a version bump in upgrade mode
+  # both resources change, and applying config mid-upgrade-reboot fails
+  # nondeterministically (#210 review).
+  depends_on = [talos_machine_bootstrap.this, terraform_data.talos_upgrade]
 
   client_configuration        = talos_machine_secrets.this.client_configuration
   machine_configuration_input = data.talos_machine_configuration.controlplane.machine_configuration
@@ -413,6 +420,72 @@ resource "talos_machine_configuration_apply" "controlplane" {
   # For firewall rules (NetworkRuleConfig): staged for next reboot.
   apply_mode = "auto"
 
+}
+
+# In-place Talos upgrade (ADR-0013 Phase 2, #210).
+#
+# Active only with upgrade_mode = "upgrade": version/extension changes flow
+# into the factory installer image, which replaces this resource and runs
+# `talosctl upgrade --stage --preserve --wait` via local-exec.
+# - --stage: install before ZFS mounts are active (siderolabs/talos#8800)
+# - --preserve: keep EPHEMERAL (etcd cannot rebuild from peers on one node)
+# - A/B boot partitions give automatic rollback on a failed boot
+#
+# The guard skips the upgrade when the node already runs the target version
+# AND schematic (e.g. right after flipping upgrade_mode, whose resource
+# creation would otherwise trigger a same-version upgrade + reboot).
+#
+# Requires talosctl and a talosconfig (./talosconfig or $TALOSCONFIG) where
+# `tofu apply` runs — not wired into the GitOps CI runner (see
+# docs/guides/GITOPS_SETUP.md).
+resource "terraform_data" "talos_upgrade" {
+  count = var.upgrade_mode == "upgrade" ? 1 : 0
+
+  triggers_replace = [
+    local.talos_installer_image,
+  ]
+
+  depends_on = [talos_machine_bootstrap.this]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      TC="$${TALOSCONFIG:-$PWD/talosconfig}"
+      if [ ! -f "$TC" ]; then
+        echo "ERROR: talosconfig not found at $TC." >&2
+        echo "Run: tofu output -raw talosconfig > talosconfig (or set TALOSCONFIG)." >&2
+        exit 1
+      fi
+      NODE="${local.default_api_ip}"
+      IMAGE="${local.talos_installer_image}"
+
+      # Skip when the node already runs the target version AND schematic.
+      # The SERVER version is extracted explicitly — `version --short` also
+      # prints the CLIENT version, and a bare grep would false-match when the
+      # operator's talosctl equals the target (#210 review), silently
+      # skipping a needed upgrade. Exact match also avoids v1.12.3 matching
+      # v1.12.30.
+      VER_OUT="$(talosctl --talosconfig "$TC" -n "$NODE" -e "$NODE" version --short 2>/dev/null || true)"
+      EXT_OUT="$(talosctl --talosconfig "$TC" -n "$NODE" -e "$NODE" get extensions 2>/dev/null || true)"
+      # Server section format (verified on talosctl 1.12.x): "Server:" then
+      # tab-indented fields; the version is the "Tag:" line.
+      SRV_VER="$(printf '%s\n' "$VER_OUT" | awk '/^Server:/{s=1;next} s && $1=="Tag:"{print $2; exit}')"
+      if [[ "$SRV_VER" == "${var.talos_version}" && "$EXT_OUT" == *"${talos_image_factory_schematic.this.id}"* ]]; then
+        echo "Node already runs ${var.talos_version} with the target schematic - nothing to upgrade."
+        exit 0
+      fi
+
+      # --preserve is deprecated-hidden on modern talosctl (preservation is
+      # the default there) but still REQUIRED on the legacy upgrade path —
+      # omitting it there silently loses etcd. Keep it until talosctl 1.18
+      # removes the flag (loud failure, one-line fix then).
+      echo "In-place upgrade to $IMAGE (staged, preserving EPHEMERAL; the node will reboot)..."
+      talosctl --talosconfig "$TC" -n "$NODE" -e "$NODE" \
+        upgrade --image "$IMAGE" --stage --preserve --wait --timeout 30m
+      echo "Upgrade complete."
+    EOT
+  }
 }
 
 # Extract kubeconfig for kubectl access

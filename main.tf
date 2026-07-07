@@ -78,15 +78,21 @@ locals {
 # replaces the trigger and cascades a full reinstall (see #268).
 resource "terraform_data" "reinstall_trigger" {
   triggers_replace = [
-    # Image configuration
-    local.image_url,
+    # Image / version / extensions: reinstall-managed only when
+    # upgrade_mode = "reinstall". With upgrade_mode = "upgrade" these become
+    # static literals and version/extension changes are handled in-place by
+    # terraform_data.talos_upgrade (ADR-0013 Phase 2, #210). The conditionals
+    # yield the EXACT pre-#210 values in reinstall mode, so introducing them
+    # did not itself replace the trigger; flipping upgrade_mode does (one
+    # cascaded reinstall — see the variable description).
+    var.upgrade_mode == "reinstall" ? local.image_url : "in-place-upgrade",
     local.image_type,
     # Cluster configuration (stable)
     var.cluster_name,
-    var.talos_version,
+    var.upgrade_mode == "reinstall" ? var.talos_version : "in-place-upgrade",
     local.actual_cluster_endpoint,
     # Extensions (stable)
-    sha256(jsonencode(var.talos_extensions)),
+    var.upgrade_mode == "reinstall" ? sha256(jsonencode(var.talos_extensions)) : "in-place-upgrade",
     # CertSANs config (stable - depends only on ts.net hostname, not auth key)
     sha256(local.certsans_config_patch),
     # Tailscale config structure (stable - hostname and args, NOT the volatile auth key)
@@ -160,6 +166,14 @@ resource "ovh_dedicated_server_reinstall_task" "talos" {
     # Reinstalls should only be triggered by our STABLE trigger, not by key rotation.
     ignore_changes = [
       customizations[0].config_drive_user_data,
+      # image_url embeds talos_version + schematic id and is ForceNew on this
+      # resource. Replacement must be driven SOLELY by replace_triggered_by:
+      # with upgrade_mode = "upgrade" a version bump changes image_url without
+      # firing the trigger, and an attribute-driven replacement would reinstall
+      # the server WITHOUT regenerating the Tailscale key or re-running
+      # bootstrap — an unreachable-node outage (#210 review). Trigger-driven
+      # recreation still reads the current value.
+      customizations[0].image_url,
     ]
 
     # Trigger reinstall when stable config changes

@@ -8,6 +8,7 @@ server_state       = "ok"  # Server state (ok, disabled, etc.)
 
 # Talos OS Configuration
 talos_version    = "v1.12.0"                       # Talos OS version to deploy
+# upgrade_mode   = "reinstall"                     # "upgrade" = in-place talosctl upgrades (ADR-0013 Phase 2); flipping cascades ONE reinstall — see runbook
 # kubernetes_version = "1.35.0"                    # Must match talos_version's support matrix (see variables.tf)
 cluster_name     = "talos-xd-venture"              # Kubernetes cluster name
 cluster_endpoint = "https://<server-ip>:6443"      # Replace <server-ip> with actual server IP (used when Tailscale not configured)

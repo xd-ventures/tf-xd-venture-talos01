@@ -1,5 +1,12 @@
 # ADR-0013: Upgrade Lifecycle Architecture
 
+> **Note** (2026-07-08): Phase 2 implemented (#210) with one deviation: the
+> `upgrade_mode` default is `"reinstall"` (not the suggested `"upgrade"`),
+> because changing the reinstall-trigger structure cascades a full reinstall
+> (#268) — defaulting to `"upgrade"` would have forced an immediate reinstall
+> on rollout. Operators opt in deliberately; the flip procedure (accept one
+> reinstall, or state surgery) is documented in the Operations Runbook.
+
 ## Status
 Accepted
 
