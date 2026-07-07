@@ -22,7 +22,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 │  │  │   Tailscale        │  │         Cilium CNI              │   │  │
 │  │  │   Extension        │  │   • eBPF dataplane              │   │  │
 │  │  │   (100.x.x.x)      │  │   • Hubble observability        │   │  │
-│  │  │                    │  │   • Gateway API                 │   │  │
+│  │  │                    │  │   • VXLAN overlay (pinned)      │   │  │
 │  │  └────────────────────┘  └─────────────────────────────────┘   │  │
 │  │                                                                │  │
 │  │  ┌────────────────────────────────────────────────────────┐    │  │
@@ -92,7 +92,7 @@ This document provides a high-level overview of the Talos Kubernetes cluster arc
 |-----------|------------|---------|
 | CNI | Cilium | Container networking |
 | Observability | Hubble | Network flow visibility |
-| Ingress | Gateway API | HTTP/HTTPS routing |
+| Ingress | None yet — Gateway API planned with the ingress milestone (ADR-0015) | HTTP/HTTPS routing |
 | Admin Access | Tailscale | Zero-trust VPN |
 | Public Access | Cloudflare Tunnel (planned) | Secure public exposure |
 | Firewall | Talos NetworkRuleConfig | Block public IP |
@@ -214,7 +214,7 @@ for any Jobs that use `nsenter` or `hostPID`.
 - For missing tools: install them in the container image and run directly (privileged containers have `/dev/` access)
 
 ### Adding Public Services (planned)
-1. Deploy workload with Gateway API
+1. Install the Gateway API CRDs + enable `gatewayAPI` in Cilium (ADR-0015), deploy workload with Gateway API
 2. Configure Cloudflare Tunnel route
 3. No firewall changes needed (Tailscale traffic already allowed)
 

@@ -11,7 +11,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 ## Features
 
 - **Immutable OS**: Talos Linux - secure, minimal, API-managed Kubernetes OS
-- **Modern Networking**: Cilium CNI with eBPF, Hubble observability, and Gateway API
+- **Modern Networking**: Cilium CNI with eBPF dataplane, kube-proxy replacement, and Hubble observability
 - **Zero-Trust Access**: Tailscale for secure API access (no public IP exposure)
 - **Data Redundancy**: ZFS mirror for persistent storage across NVMe drives
 - **GitOps Ready**: ArgoCD integration for application deployment
@@ -39,7 +39,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 │  │  │   Tailscale     │  │          Cilium CNI           │ │  │
 │  │  │   Extension     │  │   • eBPF dataplane            │ │  │
 │  │  │   (100.x.x.x)   │  │   • Hubble observability      │ │  │
-│  │  └─────────────────┘  │   • Gateway API               │ │  │
+│  │  └─────────────────┘  │   • VXLAN overlay (pinned)    │ │  │
 │  │                       └───────────────────────────────┘ │  │
 │  │                                                         │  │
 │  │  ┌────────────────────────────────────────────────────┐ │  │
