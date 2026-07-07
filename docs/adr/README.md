@@ -20,6 +20,7 @@ This directory contains Architecture Decision Records (ADRs) documenting key tec
 | [0012](0012-single-node-destructive-upgrades.md) | Single-Node Deployment | Accepted (upgrade path superseded by ADR-0013) | Single node with reinstall-based upgrades |
 | [0013](0013-upgrade-lifecycle-architecture.md) | Upgrade Lifecycle Architecture | Accepted | Three-phase lifecycle: live config, in-place upgrade, rolling upgrade |
 | [0014](0014-tacos-selection.md) | TACOS Selection | Accepted | GitHub-Actions-native GitOps (dflook) + native S3 state locking; OpenTaco abandoned |
+| [0015](0015-cilium-datapath-alignment.md) | Cilium Datapath Alignment | Accepted | VXLAN pinned (not native routing), kube-proxy removal, Gateway API deferred |
 
 ## ADR Format
 

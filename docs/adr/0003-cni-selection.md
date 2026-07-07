@@ -1,5 +1,14 @@
 # ADR-0003: CNI Selection
 
+> **Note** (2026-07-08): The Cilium *selection* stands, but this ADR's
+> implementation details are superseded by
+> [ADR-0015](0015-cilium-datapath-alignment.md): the cluster runs VXLAN
+> (not native routing, now pinned explicitly), kube-proxy removal was never
+> wired and is being completed, the promised Gateway API CRDs manifest was
+> never added (flag removed until ingress lands), and the
+> `bpf.hostLegacyRouting: "Required for Talos"` claim proved incorrect
+> (unset, 110+ days of stable operation). See #240.
+
 ## Status
 Accepted
 
