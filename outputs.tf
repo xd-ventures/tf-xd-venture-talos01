@@ -103,6 +103,9 @@ output "bootstrap_completed" {
 # connect via Tailscale for security.
 output "kubeconfig" {
   description = "Kubernetes admin configuration for kubectl - ready to use YAML file"
+  # kubeconfig_raw's server URL is the public IP; rewrite it to the stable
+  # ts.net hostname when Tailscale is enabled (verified live: the replace
+  # matches — see #252 discussion).
   value = local.tailscale_enabled ? replace(
     talos_cluster_kubeconfig.this.kubeconfig_raw,
     "https://${local.cluster_ip}:6443",
@@ -116,10 +119,14 @@ output "kubeconfig_save_command" {
   value       = "tofu output -raw kubeconfig > kubeconfig"
 }
 
-# WARNING: Bypasses Tailscale security model. Use only for emergency recovery
-# when Tailscale is unavailable. Requires firewall to be disabled.
+# WARNING: Bypasses the Tailscale security model. Only functional while the
+# firewall is DISABLED — with the firewall enabled, 6443 is blocked on the
+# public IP and no kubeconfig helps (use iKVM/rescue mode instead; see
+# docs/DISASTER_RECOVERY.md). kubeconfig_raw's server URL is already the
+# public IP (verified live, #252 — the review claim that it pointed at
+# ts.net was incorrect), so it is returned as-is.
 output "kubeconfig_public_ip" {
-  description = "Kubeconfig with public IP for emergency access. WARNING: bypasses Tailscale — use only when Tailscale is down and firewall is disabled."
+  description = "Kubeconfig pointing at the public IP for emergency access while the firewall is disabled. WARNING: bypasses Tailscale."
   value       = talos_cluster_kubeconfig.this.kubeconfig_raw
   sensitive   = true
 }

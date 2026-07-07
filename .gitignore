@@ -26,6 +26,8 @@ crash.*.log
 
 # Credentials and secrets
 .env
+.env.*
+!.env.example
 kubeconfig
 kubeconfig.tmp
 talosconfig

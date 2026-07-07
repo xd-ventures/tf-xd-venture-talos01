@@ -70,6 +70,12 @@ locals {
 # IMPORTANT: We trigger on STABLE components only, NOT on volatile values like Tailscale auth key.
 # The Tailscale key expires hourly but is only needed once during initial setup (TS_AUTH_ONCE=true).
 # Changes to the key should NOT trigger cluster reinstall.
+# NOTE (#282): several trigger values below (cluster endpoint, tailnet,
+# hostname) render VERBATIM in public CI plan diffs whenever the trigger
+# changes. At the next PLANNED reinstall, wrap the identifier-carrying
+# entries in sha256() — equivalent change detection, no cleartext in diffs.
+# Do NOT change them outside a reinstall window: any edit to this list
+# replaces the trigger and cascades a full reinstall (see #268).
 resource "terraform_data" "reinstall_trigger" {
   triggers_replace = [
     # Image configuration

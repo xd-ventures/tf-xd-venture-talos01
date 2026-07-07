@@ -58,6 +58,9 @@ The following are known and tracked. You do not need to report these:
   2. `kubectl delete secret argocd-initial-admin-secret -n argocd`
   3. Set `argocd_disable_admin = true` in `terraform.tfvars` and re-apply to disable the built-in admin account
 - **Cilium install image** — uses a CI image tag with cluster-admin RBAC ([#11](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/11))
+- **Tailscale auth key transits OVH and remote state** — the pre-authorized key is embedded in the machine config, passes through the OVH reinstall API (held in their task/config-drive infrastructure), and persists in the remote state. Accepted residual risk: the key is single-use (`TS_AUTH_ONCE=true`), tag-scoped, expires after 1 hour, and the state bucket is encrypted and access-controlled (ADR-0006/ADR-0010).
+- **Infrastructure identifiers in public CI output** — `tofu plan`/drift diffs on this public repository can render the tailnet name when identifier-carrying attributes change (e.g. the reinstall trigger list; [#282](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/282)). Accepted: knowing the tailnet name grants no access (zero-trust device authorization), steady-state runs print no diff, and the trigger values will be replaced with hashes at the next planned reinstall (see the note in `main.tf`).
+- **Shodan monitoring is IPv4-only** — the alert watches the public IPv4 `/32`; the server's routed IPv6 block is not monitored (free-tier IP limits make `/64` monitoring impractical) and the CI security suite also scans IPv4 only. IPv6 exposure protection relies on the Talos firewall rules themselves (which cover IPv6 via `tailscale_ipv6_cidr`).
 
 Security-relevant issues are labeled [`security`](https://github.com/xd-ventures/tf-xd-venture-talos01/labels/security) in the issue tracker.
 

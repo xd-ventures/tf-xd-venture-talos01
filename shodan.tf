@@ -6,6 +6,10 @@
 # Registers the server's public IP with Shodan Monitor to get alerts
 # when services are accidentally exposed to the internet.
 # Disabled by default — set shodan_enabled = true and provide API key.
+#
+# IPv4-only by design (#252): the routed IPv6 block is not monitored —
+# Shodan free-tier IP limits make /64 monitoring impractical. IPv6
+# exposure protection relies on the Talos firewall rules (see SECURITY.md).
 
 resource "shodan_alert" "server" {
   count = var.shodan_enabled ? 1 : 0
