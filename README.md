@@ -4,7 +4,7 @@
 [![PR Validation](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml/badge.svg?event=pull_request)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/pr-validation.yml)
 [![CodeQL](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/codeql.yml/badge.svg)](https://github.com/xd-ventures/tf-xd-venture-talos01/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/xd-ventures/tf-xd-venture-talos01/badge)](https://scorecard.dev/viewer/?uri=github.com/xd-ventures/tf-xd-venture-talos01)
-[![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.6.0-blue.svg)](https://opentofu.org/)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.10.0-blue.svg)](https://opentofu.org/)
 
 Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster on OVH dedicated servers.
 
@@ -68,7 +68,7 @@ Infrastructure-as-Code for deploying a production-ready Talos Kubernetes cluster
 
 ### Prerequisites
 
-- [OpenTofu](https://opentofu.org/) or Terraform >= 1.6.0
+- [OpenTofu](https://opentofu.org/) >= 1.10.0 (or Terraform >= 1.10 — needed for native S3 state locking)
 - OVH account with API credentials
 - Tailscale account with OAuth client (see [ADR-0008](docs/adr/0008-tailscale-authentication-strategy.md))
 - Existing OVH dedicated server
