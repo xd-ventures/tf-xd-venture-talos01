@@ -194,9 +194,14 @@ variable "tailscale_device_lookup" {
 }
 
 variable "tailscale_extra_args" {
-  description = "Extra arguments for Tailscale (e.g., --accept-routes, --advertise-exit-node)"
+  description = "Extra environment entries for the Tailscale extension in TS_* KEY=VALUE form (e.g., [\"TS_ACCEPT_ROUTES=true\", \"TS_ADVERTISE_EXIT_NODE=true\"]). These are ExtensionServiceConfig environment variables, NOT CLI flags — flag-style values would be silently ignored by the extension."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for a in var.tailscale_extra_args : can(regex("^TS_[A-Z0-9_]+=", a))])
+    error_message = "Each tailscale_extra_args entry must be a TS_* environment variable in KEY=VALUE form (e.g., TS_ACCEPT_ROUTES=true). CLI flags like --accept-routes are not supported by the Talos Tailscale extension."
+  }
 }
 
 variable "tailscale_tags" {
@@ -214,13 +219,13 @@ variable "enable_firewall" {
 }
 
 variable "pod_network_cidr" {
-  description = "Pod network CIDR for CNI (Cilium with Kubernetes IPAM)"
+  description = "Pod network CIDR — wired into both the cluster config (podSubnets) and the firewall rules so they cannot disagree (#244). Changing it triggers a full reinstall (cluster CIDRs cannot change in place)."
   type        = string
   default     = "10.244.0.0/16"
 }
 
 variable "service_network_cidr" {
-  description = "Kubernetes service network CIDR (ClusterIP range)"
+  description = "Kubernetes service network CIDR (ClusterIP range) — wired into both the cluster config (serviceSubnets) and the firewall rules so they cannot disagree (#244). Changing it triggers a full reinstall (cluster CIDRs cannot change in place)."
   type        = string
   default     = "10.96.0.0/12"
 }

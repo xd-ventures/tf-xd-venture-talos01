@@ -216,11 +216,17 @@ locals {
   # All inline manifests MUST be in a single config patch to avoid overwrites.
   cluster_config_patch = yamlencode({
     cluster = {
-      # Disable default Flannel CNI (Cilium replaces it)
+      # Disable default Flannel CNI (Cilium replaces it).
+      # Pod/service subnets are wired to the same variables the firewall
+      # rules use (#244) so the two can never disagree. The values match the
+      # Talos defaults; changing them triggers a full reinstall (both vars
+      # are in the reinstall trigger) — cluster CIDRs cannot change in place.
       network = {
         cni = {
           name = "none"
         }
+        podSubnets     = [var.pod_network_cidr]
+        serviceSubnets = [var.service_network_cidr]
       }
       # kube-proxy is replaced by Cilium's eBPF kubeProxyReplacement;
       # running both is a conflict-prone double service-dataplane
@@ -347,16 +353,21 @@ resource "talos_machine_bootstrap" "this" {
     ]
 
     precondition {
+      # The manual tailscale_ip fallback (ADR-0009) is an accepted alternative
+      # to the device lookup — tailscale_endpoint_ip resolves lookup > manual
+      # override > public IP, and only the public-IP fallback is a lockout.
       condition = (
         !var.enable_firewall ||
-        (local.tailscale_enabled && var.tailscale_device_lookup)
+        (local.tailscale_enabled && (var.tailscale_device_lookup || var.tailscale_ip != ""))
       )
       error_message = <<-EOT
         LOCKOUT: Firewall is enabled but bootstrap cannot reach the Talos API.
         The firewall blocks port 50000 on the public IP from first boot.
         Bootstrap must use the Tailscale IP, which requires:
         1. tailscale_hostname and tailscale_tailnet configured
-        2. tailscale_device_lookup = true (with 'devices:read' OAuth scope)
+        2. tailscale_device_lookup = true (with 'devices:read' OAuth scope),
+           OR a manual tailscale_ip override (see ADR-0009 — you are
+           responsible for keeping it current)
       EOT
     }
   }
