@@ -198,19 +198,17 @@ locals {
   # (pinned explicitly — see ADR-0015)
   # See templates/cilium-install-job.yaml.tftpl for the full manifest
   cilium_install_manifest = templatefile("${path.module}/templates/cilium-install-job.yaml.tftpl", {
-    cilium_cli_version = var.cilium_cli_version
-    cilium_cli_digest  = var.cilium_cli_digest
+    cilium_cli_image = var.cilium_cli_image
   })
 
   # ZFS pool setup manifest (only when enabled)
   # Uses a privileged Job with nsenter to run host ZFS/sfdisk binaries
   # See templates/zfs-pool-job.yaml.tftpl for the full manifest
   zfs_pool_manifest = var.zfs_pool_enabled ? templatefile("${path.module}/templates/zfs-pool-job.yaml.tftpl", {
-    pool_name     = var.zfs_pool_name
-    mount_point   = var.zfs_pool_mount_point
-    disk_args     = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
-    alpine_image  = var.alpine_image
-    alpine_digest = var.alpine_digest
+    pool_name          = var.zfs_pool_name
+    mount_point        = var.zfs_pool_mount_point
+    disk_args          = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
+    zfs_pool_job_image = var.zfs_pool_job_image
   }) : ""
 
   # Cluster-level config patch: CNI, inline manifests, and scheduling

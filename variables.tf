@@ -118,42 +118,32 @@ variable "extra_kernel_args" {
 
 # Cilium CNI Configuration Variables
 
-variable "cilium_cli_version" {
-  description = "Cilium CLI image version tag for the install Job. See: https://github.com/cilium/cilium-cli/releases"
+# Combined repo:tag@digest pin so Renovate updates tag and digest atomically
+# (see the tag@digest custom manager in renovate.json).
+# NOTE (#289): the cilium-install Job is not yet idempotent — a merged+applied
+# bump re-runs the Job, which fails harmlessly against the running
+# installation; the new pin takes effect at the next reinstall until #289.
+variable "cilium_cli_image" {
+  description = "Cilium CLI image (repo:tag@digest) for the install Job. See: https://github.com/cilium/cilium-cli/releases"
   type        = string
-  default     = "v0.18.2"
+  # renovate: datasource=docker depName=quay.io/cilium/cilium-cli-ci
+  default = "quay.io/cilium/cilium-cli-ci:v0.18.2@sha256:503324c1fc7027e0daeb251ca2d4ad6b42d73c6be7a89cb8057cce8e59e50393"
 
   validation {
-    condition     = can(regex("^v\\d+\\.\\d+\\.\\d+$", var.cilium_cli_version))
-    error_message = "cilium_cli_version must be a semantic version prefixed with 'v' (e.g., v0.18.2)."
+    condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.cilium_cli_image))
+    error_message = "cilium_cli_image must be in repo:tag@sha256:<digest> form."
   }
 }
 
-variable "cilium_cli_digest" {
-  description = "SHA256 digest for the Cilium CLI image. Use 'crane digest quay.io/cilium/cilium-cli-ci:<tag>' to obtain."
+variable "zfs_pool_job_image" {
+  description = "Utility image (repo:tag@digest) for the ZFS pool setup Job."
   type        = string
-  default     = "sha256:503324c1fc7027e0daeb251ca2d4ad6b42d73c6be7a89cb8057cce8e59e50393"
+  # renovate: datasource=docker depName=alpine
+  default = "alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709"
 
   validation {
-    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.cilium_cli_digest))
-    error_message = "cilium_cli_digest must be a sha256 digest (e.g., sha256:abc123...)."
-  }
-}
-
-variable "alpine_image" {
-  description = "Alpine image tag for the ZFS pool setup Job."
-  type        = string
-  default     = "3.21"
-}
-
-variable "alpine_digest" {
-  description = "SHA256 digest for the Alpine image. Use 'crane digest alpine:<tag>' to obtain."
-  type        = string
-  default     = "sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709"
-
-  validation {
-    condition     = can(regex("^sha256:[a-f0-9]{64}$", var.alpine_digest))
-    error_message = "alpine_digest must be a sha256 digest (e.g., sha256:abc123...)."
+    condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.zfs_pool_job_image))
+    error_message = "zfs_pool_job_image must be in repo:tag@sha256:<digest> form."
   }
 }
 
