@@ -42,7 +42,34 @@ The workflows are **inert until you flip the switch**: every job is gated on
    | `OVH_ENDPOINT` | `ovh-eu` |
    | `GITOPS_ENABLED` | `true` (the master switch — set this **last**) |
 
-3. Recommended: add a **deployment protection rule** on the `production`
+3. Configure the **tailnet ACL** for the CI runners (they join as `tag:ci`).
+   Two entries are required — CI is otherwise blocked by the zero-trust
+   policy even though the node firewall allows the whole tailnet CIDR:
+
+   - **Tag ownership** — so the OAuth client can mint `tag:ci` keys:
+     ```jsonc
+     "tagOwners": {
+         "tag:k8s-cluster": ["tag:terraform"],
+         "tag:ci":          ["tag:terraform"],  // same owner as tag:k8s-cluster
+     }
+     ```
+   - **Access grant** — so `tag:ci` runners can reach the cluster APIs
+     (Talos 50000, Kubernetes 6443). Without this, `cluster-checks` and any
+     GitOps apply that pushes machine config hang until timeout:
+     ```jsonc
+     "acls": [
+         {
+             "action": "accept",
+             "src": ["tag:ci"],
+             "dst": ["tag:k8s-cluster:50000", "tag:k8s-cluster:6443"]
+         }
+     ]
+     ```
+   (Note: `tofu plan`/`apply` of an *unchanged* config never dials the node —
+   the machine config is computed from variables — so the pipeline appears
+   healthy without this grant; the checks that actually connect will not.)
+
+4. Recommended: add a **deployment protection rule** on the `production`
    environment (required reviewer = you) if you want a manual gate before
    apply/drift runs touch the cluster.
 
