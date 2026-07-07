@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Maciej Sawicki
 
+# GitOps verification: this comment triggered the first dflook plan/apply run (#279).
+
 terraform {
   # >= 1.10 required for native S3 state locking (use_lockfile in backend.tf)
   required_version = ">= 1.10.0"
