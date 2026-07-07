@@ -19,7 +19,13 @@ plan: ## Show execution plan
 apply: ## Apply infrastructure changes
 	tofu apply
 
-deploy: apply kubeconfig talosconfig test ## Apply and run validation checks
+# Single recipe (not prerequisites): prerequisite ordering is not guaranteed
+# under `make -j`, and each step depends on the previous one's side effects.
+deploy: ## Apply and run validation checks
+	$(MAKE) apply
+	$(MAKE) kubeconfig
+	$(MAKE) talosconfig
+	$(MAKE) test
 
 test: ## Run all cluster validation checks (TAP output)
 	python3 scripts/cluster_checks.py --suite all
@@ -46,14 +52,14 @@ setup: ## First-time setup: install pre-commit hooks
 	pip install pre-commit
 	pre-commit install
 
+# umask + tmp/mv: never leave a truncated or world-readable credentials file
+# behind when `tofu output` fails mid-write (#245).
 kubeconfig: ## Export kubeconfig from cluster
-	tofu output -raw kubeconfig > kubeconfig
-	chmod 600 kubeconfig
+	umask 077 && tofu output -raw kubeconfig > kubeconfig.tmp && mv kubeconfig.tmp kubeconfig
 	@echo "Run: export KUBECONFIG=$$PWD/kubeconfig"
 
 talosconfig: ## Export talosconfig from cluster
-	tofu output -raw talosconfig > talosconfig
-	chmod 600 talosconfig
+	umask 077 && tofu output -raw talosconfig > talosconfig.tmp && mv talosconfig.tmp talosconfig
 	@echo "Run: export TALOSCONFIG=$$PWD/talosconfig"
 
 status: ## Check OVH server status

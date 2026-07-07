@@ -26,11 +26,45 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
 API_TIMEOUT = 10  # seconds — fail fast if Tailscale API is unreachable
+API_RETRIES = 3  # transient-failure retries (URLError / 5xx) with short backoff
+
+
+def _urlopen_with_retries(req, what: str):
+    """urlopen with bounded retries for transient failures.
+
+    A transient Tailscale API blip previously surfaced as a raw traceback and
+    aborted 'tofu apply' mid-reinstall (#245). Retries cover network errors
+    (URLError) and 5xx responses; 4xx errors are raised for callers to handle.
+    """
+    last_err = None
+    for attempt in range(1, API_RETRIES + 1):
+        try:
+            return urllib.request.urlopen(req, timeout=API_TIMEOUT)
+        except urllib.error.HTTPError as e:
+            if e.code >= 500:
+                last_err = e
+            else:
+                raise
+        except urllib.error.URLError as e:
+            last_err = e
+        print(
+            f"WARNING: {what} failed (attempt {attempt}/{API_RETRIES}): {last_err}",
+            file=sys.stderr,
+        )
+        if attempt < API_RETRIES:
+            time.sleep(3 * attempt)
+    print(
+        f"ERROR: {what} failed after {API_RETRIES} attempts: {last_err}. "
+        "Check network connectivity to api.tailscale.com.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def get_oauth_token(client_id: str, client_secret: str) -> str:
@@ -46,7 +80,7 @@ def get_oauth_token(client_id: str, client_secret: str) -> str:
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
     try:
-        resp = urllib.request.urlopen(req, timeout=API_TIMEOUT)
+        resp = _urlopen_with_retries(req, "OAuth token request")
     except urllib.error.HTTPError as e:
         print(f"ERROR: OAuth token request failed: {e.code} {e.reason}", file=sys.stderr)
         if e.code == 401:
@@ -61,7 +95,11 @@ def list_devices(token: str) -> list:
         "https://api.tailscale.com/api/v2/tailnet/-/devices?fields=default",
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = urllib.request.urlopen(req, timeout=API_TIMEOUT)
+    try:
+        resp = _urlopen_with_retries(req, "device list request")
+    except urllib.error.HTTPError as e:
+        print(f"ERROR: device list request failed: {e.code} {e.reason}", file=sys.stderr)
+        sys.exit(1)
     return json.loads(resp.read()).get("devices", [])
 
 
@@ -73,7 +111,7 @@ def delete_device(token: str, device_id: str) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     try:
-        urllib.request.urlopen(req, timeout=API_TIMEOUT)
+        _urlopen_with_retries(req, f"device delete ({device_id})")
     except urllib.error.HTTPError as e:
         if e.code == 403:
             print(

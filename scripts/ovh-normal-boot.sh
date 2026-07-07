@@ -61,21 +61,34 @@ try:
     task_id = result.get('taskId')
     print(f"Reboot task: {task_id}")
 
-    # Wait for reboot to complete
-    print("Waiting for reboot to complete...")
-    for i in range(60):  # 10 minutes max
-        task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
+    # Wait for reboot task to complete. Loop exhaustion is a FAILURE —
+    # previously it fell through and reported success (#245). Transient API
+    # errors are retried until the deadline instead of aborting.
+    print("Waiting for reboot task to complete...")
+    deadline = time.time() + 600  # 10 minutes
+    completed = False
+    while time.time() < deadline:
+        try:
+            task = client.get(f'/dedicated/server/{service_name}/task/{task_id}')
+        except Exception as e:
+            print(f"  API error (will retry): {e}")
+            time.sleep(10)
+            continue
         status = task.get('status')
         print(f"  Status: {status}")
 
         if status == 'done':
-            print("\n✅ Server is rebooting to harddisk!")
+            completed = True
             break
-        elif status == 'error':
-            print(f"Reboot failed: {task.get('comment')}")
+        elif status in ('error', 'cancelled', 'canceled', 'ovhError', 'customerError'):
+            print(f"Reboot task {status}: {task.get('comment')}")
             sys.exit(1)
 
         time.sleep(10)
+
+    if not completed:
+        print("\n\u274c Reboot task did not complete within 10 minutes", file=sys.stderr)
+        sys.exit(1)
 
     # Get server IP
     server = client.get(f'/dedicated/server/{service_name}')

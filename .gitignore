@@ -27,7 +27,9 @@ crash.*.log
 # Credentials and secrets
 .env
 kubeconfig
+kubeconfig.tmp
 talosconfig
+talosconfig.tmp
 
 # IDE / Editor
 .cursor/

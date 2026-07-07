@@ -53,18 +53,14 @@ def _check_pool_state(ctx: CheckContext, tap: TAPProducer) -> bool:
         tap.not_ok(f"ZFS pool '{pool}' is ONLINE", state=state)
         return False
 
-    # Fallback: try running zpool status via nsenter in a debug container
-    result = run_talosctl(
-        ctx, "run", "/usr/local/sbin/zpool", "status", "-p", pool,
-        timeout=30,
-    )
-    if result.returncode == 0 and "ONLINE" in result.stdout:
-        tap.ok(f"ZFS pool '{pool}' is ONLINE")
-        return True
-
+    # No fallback: 'talosctl run' does not exist (Talos has no shell), so the
+    # old fallback always failed and masked the real /proc read error (#245).
+    # For manual debugging use the debug-pod pattern in the Operations Runbook.
     tap.not_ok(
         f"ZFS pool '{pool}' is ONLINE",
-        error=result.stderr.strip() or "pool not found",
+        error=result.stderr.strip()
+        or f"could not read /proc/spl/kstat/zfs/{pool}/state",
+        hint="pool missing or ZFS extension not loaded; see OPERATIONS_RUNBOOK.md",
     )
     return False
 
