@@ -112,12 +112,12 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Cilium CLI bumps do not roll out live until #289",
+      "description": "Cilium bumps reconcile the live installation on apply",
       "matchPackageNames": [
         "quay.io/cilium/cilium-cli-ci"
       ],
       "prBodyNotes": [
-        "**Note (#289)**: the cilium-install Job is not idempotent \u2014 this bump takes effect at the next reinstall; applying it re-runs the Job, which fails harmlessly against the running installation."
+        "**Note**: applying this bump re-runs the cilium-install Job, which reconciles the running Cilium via `cilium upgrade` (#289) \u2014 Cilium pods may roll briefly on the single node."
       ]
     }
   ]

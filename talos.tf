@@ -199,6 +199,7 @@ locals {
   # See templates/cilium-install-job.yaml.tftpl for the full manifest
   cilium_install_manifest = templatefile("${path.module}/templates/cilium-install-job.yaml.tftpl", {
     cilium_cli_image = var.cilium_cli_image
+    cilium_version   = var.cilium_version
   })
 
   # ZFS pool setup manifest (only when enabled)
