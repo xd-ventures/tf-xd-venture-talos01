@@ -103,20 +103,23 @@ jobs:
         env:
           # Run logs and the Job Summary are public — never disable redaction here
           CHECK_REDACT: "true"
-          CHECK_ENDPOINT: ${{ vars.CHECK_ENDPOINT }}
-          CHECK_NODE: ${{ vars.CHECK_NODE }}
+          # Identifier-bearing values are SECRETS (not vars) so GitHub masks
+          # them in the env-block echo of public logs (#300); the TAP output
+          # is separately redacted by the harness (#237).
+          CHECK_ENDPOINT: ${{ secrets.CHECK_ENDPOINT }}
+          CHECK_NODE: ${{ secrets.CHECK_NODE }}
           CHECK_TALOSCONFIG: talosconfig
           CHECK_KUBECONFIG: kubeconfig
           CHECK_TALOS_VERSION: ${{ vars.CHECK_TALOS_VERSION }}
-          CHECK_CLUSTER_NAME: ${{ vars.CHECK_CLUSTER_NAME }}
-          CHECK_CLUSTER_ENDPOINT: ${{ vars.CHECK_CLUSTER_ENDPOINT }}
+          CHECK_CLUSTER_NAME: ${{ secrets.CHECK_CLUSTER_NAME }}
+          CHECK_CLUSTER_ENDPOINT: ${{ secrets.CHECK_CLUSTER_ENDPOINT }}
           CHECK_TAILSCALE_ENABLED: ${{ vars.TAILSCALE_ENABLED }}
           CHECK_FIREWALL_ENABLED: ${{ vars.FIREWALL_ENABLED }}
           CHECK_ZFS_POOL_ENABLED: ${{ vars.ZFS_POOL_ENABLED }}
           CHECK_ZFS_POOL_NAME: ${{ vars.ZFS_POOL_NAME }}
           CHECK_ARGOCD_ENABLED: ${{ vars.ARGOCD_ENABLED }}
-          CHECK_PUBLIC_IP: ${{ vars.CHECK_PUBLIC_IP }}
-          CHECK_TAILSCALE_IP: ${{ vars.CHECK_TAILSCALE_IP }}
+          CHECK_PUBLIC_IP: ${{ secrets.CHECK_PUBLIC_IP }}
+          CHECK_TAILSCALE_IP: ${{ secrets.CHECK_TAILSCALE_IP }}
 
       - name: Job Summary
         if: always()
