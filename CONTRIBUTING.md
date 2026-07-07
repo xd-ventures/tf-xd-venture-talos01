@@ -6,7 +6,7 @@ Contributions are welcome! This is a solo hobby project, so PR reviews may take 
 
 ### Prerequisites
 
-- [OpenTofu](https://opentofu.org/) >= 1.6.0
+- [OpenTofu](https://opentofu.org/) >= 1.10.0
 - [pre-commit](https://pre-commit.com/)
 - [TFLint](https://github.com/terraform-linters/tflint)
 

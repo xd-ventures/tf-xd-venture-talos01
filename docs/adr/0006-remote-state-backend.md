@@ -1,5 +1,10 @@
 # ADR-0006: Remote State Backend
 
+> **Note** (2026-07-08): The locking trade-off discussed below has been
+> resolved: OVH Object Storage now supports S3 conditional writes, and the
+> backend uses OpenTofu >= 1.10 native locking (`use_lockfile = true`) -- no
+> DynamoDB needed. See [ADR-0014](0014-tacos-selection.md) and #278.
+
 ## Status
 Accepted
 

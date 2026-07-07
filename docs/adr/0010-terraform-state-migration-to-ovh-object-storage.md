@@ -1,5 +1,13 @@
 # ADR-0010: Terraform State Migration to OVH Object Storage
 
+> **Note** (2026-07-08): The "no native locking" limitation and the process
+> controls below are superseded in practice: OVH shipped S3 conditional
+> writes (~2026-06), and the backend now uses OpenTofu >= 1.10 native locking
+> (`use_lockfile = true`), verified on this bucket (concurrent operations
+> fail with `412 PreconditionFailed`). The process controls remain good
+> hygiene but are no longer the only protection. See
+> [ADR-0014](0014-tacos-selection.md) and #278.
+
 ## Status
 
 Accepted

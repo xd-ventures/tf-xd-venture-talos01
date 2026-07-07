@@ -2,7 +2,8 @@
 # Copyright Maciej Sawicki
 
 terraform {
-  required_version = ">= 1.6.0"
+  # >= 1.10 required for native S3 state locking (use_lockfile in backend.tf)
+  required_version = ">= 1.10.0"
 
   required_providers {
     ovh = {
