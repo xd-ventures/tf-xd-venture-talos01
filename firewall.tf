@@ -110,9 +110,12 @@ locals {
       ]
     }),
 
-    # Allow Cilium VXLAN (UDP 8472) from localhost and pods
-    # Single-node: VXLAN traffic is local. For multi-node, add node subnet CIDRs
-    # since VXLAN outer headers use node IPs, not pod IPs.
+    # Allow Cilium VXLAN (UDP 8472) from localhost only.
+    # Single-node: VXLAN traffic is local. VXLAN outer headers use node IPs,
+    # never pod IPs, so a pod-CIDR source here could only ever match spoofed
+    # internet traffic (NetworkRuleConfig has no interface selector) — it was
+    # removed as pure attack-surface reduction (#241, ADR-0015). For
+    # multi-node, add the node subnet / Tailscale node IPs, not the pod CIDR.
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -123,7 +126,6 @@ locals {
       }
       ingress = [
         { subnet = "127.0.0.0/8" },
-        { subnet = var.pod_network_cidr },
       ]
     }),
 

@@ -224,6 +224,13 @@ locals {
           name = "none"
         }
       }
+      # kube-proxy is replaced by Cilium's eBPF kubeProxyReplacement;
+      # running both is a conflict-prone double service-dataplane
+      # (ADR-0015). NOTE: Talos's manifest controller is apply-only —
+      # the already-bootstrapped DaemonSet was deleted manually (#286).
+      proxy = {
+        disabled = true
+      }
       # Inline manifests: Cilium CNI install + optional ZFS pool setup
       inlineManifests = concat(
         [{ name = "cilium-install", contents = local.cilium_install_manifest }],
