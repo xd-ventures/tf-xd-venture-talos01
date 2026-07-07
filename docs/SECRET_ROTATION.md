@@ -11,6 +11,7 @@ This document describes how to rotate each credential used by the project.
 | Tailscale auth key | Automatic — single-use, expires in 1 hour | Low — transient |
 | ArgoCD admin password | CLI — change password, delete initial secret | Medium — cluster GitOps |
 | Talos PKI (machine secrets) | Destructive — requires cluster reinstall | Critical — cluster identity |
+| GitOps S3 credentials (GitHub) | Script — `scripts/rotate-s3-credentials.py` | High — state read/write |
 
 ---
 
@@ -180,7 +181,7 @@ and stored in Terraform state.
 
 ---
 
-## Terraform State Backend Credentials
+## Terraform State Backend Credentials (local)
 
 The S3 backend (OVH Object Storage) uses AWS-compatible access keys.
 
@@ -205,6 +206,32 @@ The S3 backend (OVH Object Storage) uses AWS-compatible access keys.
    ```
 
 4. **Revoke the old credentials** in the OVH Cloud Manager.
+
+---
+
+## GitOps S3 Credentials (GitHub Actions)
+
+The dflook GitOps workflows (ADR-0014) authenticate to the state bucket with a
+dedicated OVH cloud user (`gitops-state-backend`, `objectstore_operator`,
+scoped to the state bucket). Its S3 credentials live in the GitHub `production`
+environment as `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
+
+Rotate them with the automated script — it creates a new credential pair,
+verifies it against the bucket (read + conditional-write lock), pushes it to
+GitHub over stdin, and revokes the old pair, **without the secret ever being
+printed, logged, or written to a file**:
+
+```bash
+# Requires OVH /cloud access (a cloud-capable key in ~/.ovh.conf), gh
+# authenticated, and the aws CLI (or --skip-verify).
+scripts/rotate-s3-credentials.py --dry-run   # preview, change nothing
+scripts/rotate-s3-credentials.py             # rotate + push + revoke old
+```
+
+Create → verify → push → revoke: a broken credential is never pushed, and the
+old one is never revoked until the new one is proven. See the script's
+`--help` for `--keep-old`, `--revoke-first` (OVH allows 2 credentials per
+user), and `--project` / `--user-id` overrides.
 
 ---
 
