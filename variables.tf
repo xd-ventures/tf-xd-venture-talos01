@@ -119,10 +119,9 @@ variable "extra_kernel_args" {
 # Cilium CNI Configuration Variables
 
 # Combined repo:tag@digest pin so Renovate updates tag and digest atomically
-# (see the tag@digest custom manager in renovate.json).
-# NOTE (#289): the cilium-install Job is not yet idempotent — a merged+applied
-# bump re-runs the Job, which fails harmlessly against the running
-# installation; the new pin takes effect at the next reinstall until #289.
+# (see the tag@digest custom manager in renovate.json). Bumps re-run the
+# install Job, which reconciles the running installation via cilium upgrade
+# (#289) — no reinstall needed.
 variable "cilium_cli_image" {
   description = "Cilium CLI image (repo:tag@digest) for the install Job. See: https://github.com/cilium/cilium-cli/releases"
   type        = string
@@ -132,6 +131,18 @@ variable "cilium_cli_image" {
   validation {
     condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.cilium_cli_image))
     error_message = "cilium_cli_image must be in repo:tag@sha256:<digest> form."
+  }
+}
+
+variable "cilium_version" {
+  description = "Cilium chart version installed (fresh bootstrap) or reconciled to (cilium upgrade on re-runs) by the install Job. Pinned so upgrades are deterministic instead of following the CLI's embedded default."
+  type        = string
+  # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io/
+  default = "1.17.0"
+
+  validation {
+    condition     = can(regex("^\\d+\\.\\d+\\.\\d+$", var.cilium_version))
+    error_message = "cilium_version must be a bare semantic version (e.g., 1.17.0)."
   }
 }
 

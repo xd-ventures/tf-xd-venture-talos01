@@ -62,41 +62,48 @@ spec:
             - name: KUBERNETES_SERVICE_PORT
               value: "6443"
           command:
-            - cilium
-            - install
-            - --set
-            - ipam.mode=kubernetes
-            - --set
-            - kubeProxyReplacement=true
-            # Datapath pinned explicitly (ADR-0015): these match the cilium-cli
-            # defaults today, but an unpinned default could silently flip the
-            # datapath on the next reinstall. VXLAN is the deliberate choice —
-            # idle on single node, correct for multi-node over Tailscale.
-            - --set
-            - routingMode=tunnel
-            - --set
-            - tunnelProtocol=vxlan
-            - --set
-            - securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}
-            - --set
-            - securityContext.capabilities.cleanCiliumState={NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}
-            - --set
-            - cgroup.autoMount.enabled=false
-            - --set
-            - cgroup.hostRoot=/sys/fs/cgroup
-            - --set
-            - k8sServiceHost=localhost
-            - --set
-            - k8sServicePort=7445
-            - --set
-            - hubble.enabled=true
-            - --set
-            - hubble.relay.enabled=true
-            - --set
-            - hubble.ui.enabled=true
-            # gatewayAPI.enabled deliberately absent: the Gateway API CRDs were
-            # never installed, so the flag was inert (ADR-0015). Reintroduce
-            # together with the CRDs manifest when public ingress lands.
+            - /bin/sh
+            - -ec
+            # Install-or-upgrade (#289): a raw `cilium install` errors against
+            # an existing installation, so every inline-manifest change and
+            # every reboot used to produce a failed Job and leaked RBAC.
+            # Fresh bootstrap still takes the battle-tested install path first;
+            # re-runs detect the existing release and reconcile via upgrade
+            # (which also makes Renovate image/version bumps roll out live,
+            # restoring the ADR-0013 path).
+            - |
+              set -u
+              set -- \
+                --version ${cilium_version} \
+                --set ipam.mode=kubernetes \
+                --set kubeProxyReplacement=true \
+                --set routingMode=tunnel \
+                --set tunnelProtocol=vxlan \
+                --set "securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+                --set "securityContext.capabilities.cleanCiliumState={NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
+                --set cgroup.autoMount.enabled=false \
+                --set cgroup.hostRoot=/sys/fs/cgroup \
+                --set k8sServiceHost=localhost \
+                --set k8sServicePort=7445 \
+                --set hubble.enabled=true \
+                --set hubble.relay.enabled=true \
+                --set hubble.ui.enabled=true
+              # Datapath pinned explicitly (ADR-0015); gatewayAPI deliberately
+              # absent (no CRDs installed — reintroduce with the ingress
+              # milestone). --version pins the chart so upgrades are
+              # deterministic instead of following the CLI's embedded default.
+              echo "Attempting cilium install..."
+              if out=$(cilium install "$@" 2>&1); then
+                echo "$out"
+                echo "Fresh install complete."
+              elif echo "$out" | grep -q "cannot re-use a name"; then
+                echo "$out"
+                echo "Existing installation detected - reconciling via cilium upgrade..."
+                exec cilium upgrade "$@"
+              else
+                echo "$out" >&2
+                exit 1
+              fi
 ---
 # Post-install cleanup: delete the cluster-admin CRB and ServiceAccount
 # to eliminate the lingering privilege escalation path.
@@ -142,8 +149,9 @@ spec:
                 fi
                 FAILED=$(kubectl get job cilium-install -n kube-system -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null)
                 if [ "$FAILED" = "True" ]; then
-                  echo "cilium-install Job failed. Skipping cleanup to preserve debug access."
-                  exit 0
+                  echo "cilium-install Job failed - cleaning up RBAC anyway (#289)."
+                  echo "Debug via the install Job pod logs before the 10-minute TTL."
+                  break
                 fi
                 sleep 10
               done
