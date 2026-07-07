@@ -168,6 +168,30 @@ locals {
     }
   }) : ""
 
+  # Pin the node hostname explicitly to the cluster name.
+  # Without this, the hostname is derived from platform metadata (the OVH
+  # config drive via platform=openstack). The v1.12->v1.13 upgrade regenerated
+  # the boot cmdline as talos.platform=metal (the redundant talos.platform=
+  # openstack arg had been removed), so the node stopped reading config-drive
+  # metadata and fell back to a random talos-<hex> hostname — orphaning the
+  # Kubernetes Node object. Pinning here makes the hostname independent of
+  # platform detection on both the upgrade and reinstall paths.
+  #
+  # Talos 1.13 moved hostname into the dedicated HostnameConfig document and
+  # auto-injects `auto: stable` (the source of the random talos-<hex> name).
+  # A static `hostname` has the highest priority. It is mutually exclusive
+  # with `auto` UNLESS auto is explicitly "off": we must set auto="off" so
+  # this patch overrides the base config's auto="stable" rather than merging
+  # into an invalid {auto: stable, hostname: ...} document. Setting the legacy
+  # v1alpha1 machine.network.hostname instead fails validation with
+  # "static hostname is already set in v1alpha1 config".
+  hostname_config_patch = yamlencode({
+    apiVersion = "v1alpha1"
+    kind       = "HostnameConfig"
+    auto       = "off"
+    hostname   = var.cluster_name
+  })
+
   # ZFS kernel module configuration
   # Loads the ZFS module at boot for the ZFS extension
   zfs_config_patch = yamlencode({
@@ -255,6 +279,7 @@ locals {
   # is active from first boot — BEFORE Talos API starts listening.
   config_patches = compact(concat(
     [
+      local.hostname_config_patch,
       local.tailscale_config_patch,
       local.certsans_config_patch,
       local.extra_host_entries_config_patch,
