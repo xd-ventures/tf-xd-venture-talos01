@@ -144,28 +144,33 @@ locals {
       ]
     }),
 
-    # Allow Hubble Relay (TCP 4244) from Tailscale and localhost
+    # Allow Hubble Peer (TCP 4244) from localhost and pods.
+    # This is the peer-discovery gRPC service on the Cilium agent. hubble-relay
+    # reaches it via the hubble-peer Service (ClusterIP :443 -> node:4244), so
+    # the pod CIDR MUST be allowed or hubble-relay CrashLoops with an i/o
+    # timeout dialing the peer (issue #308). Not exposed over Tailscale —
+    # nothing outside the cluster connects to the peer service.
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
-      name       = "hubble-relay"
+      name       = "hubble-peer"
       portSelector = {
         ports    = [4244]
         protocol = "tcp"
       }
       ingress = [
         { subnet = "127.0.0.0/8" },
-        { subnet = var.tailscale_ipv4_cidr },
-        { subnet = var.tailscale_ipv6_cidr },
+        { subnet = var.pod_network_cidr },
       ]
     }),
 
-    # Allow Hubble Peer (TCP 4245) from localhost and pods
-    # Cilium agent-to-agent communication for Hubble observability
+    # Allow Hubble Relay (TCP 4245) from localhost, pods, and Tailscale.
+    # hubble-relay's gRPC API: hubble-ui (pod) and the operator's `hubble` CLI
+    # over Tailscale connect here.
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
-      name       = "hubble-peer"
+      name       = "hubble-relay"
       portSelector = {
         ports    = [4245]
         protocol = "tcp"
@@ -173,6 +178,8 @@ locals {
       ingress = [
         { subnet = "127.0.0.0/8" },
         { subnet = var.pod_network_cidr },
+        { subnet = var.tailscale_ipv4_cidr },
+        { subnet = var.tailscale_ipv6_cidr },
       ]
     }),
   ] : []
