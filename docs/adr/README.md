@@ -22,6 +22,7 @@ This directory contains Architecture Decision Records (ADRs) documenting key tec
 | [0014](0014-tacos-selection.md) | TACOS Selection | Accepted | GitHub-Actions-native GitOps (dflook) + native S3 state locking; OpenTaco abandoned |
 | [0015](0015-cilium-datapath-alignment.md) | Cilium Datapath Alignment | Accepted | VXLAN pinned (not native routing), kube-proxy removal, Gateway API deferred |
 | [0016](0016-module-extraction-and-two-repo-topology.md) | Module Extraction and Two-Repo Topology | Accepted | Extract `terraform-talos-cluster` (talos-core + adapters) to a public repo; this repo becomes the consumer via a zero-diff cutover |
+| [0017](0017-multi-node-topology-fabric-and-endpoint.md) | Multi-Node Topology, Node Fabric, and HA Endpoint | Proposed | Tailscale-first opinionated node fabric (TUN mode, pinned subnets/MTU, host-routing off), DNS-over-tailnet HA endpoint, build-new-CP+restore migration; acceptance gated on the #333 benchmark |
 | [0018](0018-backup-restore-and-disaster-recovery.md) | Backup, Restore, and Disaster Recovery | Accepted | talos-backup to S3 + off-provider replicas + rehearsed restore drills incl. full provider loss; zfs-localpv interim storage; Longhorn gated on low-RTT multi-worker fabric |
 
 ## ADR Format
