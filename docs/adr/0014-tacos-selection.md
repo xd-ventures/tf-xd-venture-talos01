@@ -1,5 +1,15 @@
 # ADR-0014: TACOS Selection — GitHub-Actions-Native GitOps with Native S3 State Locking
 
+> **Note** (2026-07-09): Amended by
+> [ADR-0016](0016-module-extraction-and-two-repo-topology.md) (decision 9):
+> CI becomes two-repo — the extracted `terraform-talos-cluster` module repo
+> runs its own CI/e2e while this repo remains the sole GitOps consumer of the
+> single production workspace. Native S3 locking (`use_lockfile`) is
+> load-bearing across all production-state writers (consumer CI applies and
+> the operator's local upgrade-mode applies share no Actions concurrency
+> domain). The dflook selection itself is unchanged. See #340 for the
+> reconciliation sweep.
+
 ## Status
 Accepted
 
