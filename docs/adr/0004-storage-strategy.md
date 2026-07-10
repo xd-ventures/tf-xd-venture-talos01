@@ -1,7 +1,17 @@
 # ADR-0004: Storage Strategy
 
+> **Note** (2026-07-10): Superseded in part by
+> [ADR-0018](0018-backup-restore-and-disaster-recovery.md) (decision 11):
+> the ZFS mirror remains the device layer as decided here, but the storage
+> *interface* moves to the consumer/GitOps layer — OpenEBS zfs-localpv
+> provisions PVCs from the existing pool (deployed via ArgoCD), and
+> module-side involvement ends at pool provisioning. Longhorn adoption is
+> gated by ADR-0018 decision 8. The device-layer decision (ZFS mirror over
+> mdadm, per-node disk layout) remains valid. See #340 for the
+> reconciliation sweep.
+
 ## Status
-Accepted
+Accepted (storage interface superseded in part by ADR-0018)
 
 ## Date
 2026-02-08
