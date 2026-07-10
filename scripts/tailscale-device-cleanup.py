@@ -8,18 +8,36 @@ On reinstall, Tailscale registers a new device. If the old device still exists,
 Tailscale appends a "-1" suffix to the hostname (e.g., "my-hostname" →
 "my-hostname-1"), which breaks data.tailscale_device hostname lookups.
 
-This script deletes any existing devices whose hostname matches exactly or has
-a numeric suffix (hostname-1, hostname-2, etc.) so the new device registers
-with the intended hostname.
+This script deletes devices that are stale incarnations of ONE node (#312):
+  - a device whose hostname EXACTLY matches TS_CLEANUP_HOSTNAME is deleted
+    unconditionally (it is this node's previous incarnation; the reinstall
+    that this cleanup precedes is about to replace it), and
+  - devices with a Tailscale dedup suffix (hostname-1, hostname-2, ...) are
+    deleted only when it is safe: never if the name belongs to another
+    cluster node (TS_CLEANUP_CLUSTER_HOSTNAMES), and never if the device was
+    recently online (lastSeen within TS_CLEANUP_ONLINE_GRACE_MINUTES,
+    default 10) or its lastSeen is unavailable — a stale dedup leftover is
+    offline by definition, so anything alive is skipped fail-safe.
+
+NODE NAMING CONSTRAINT (multi-node): node hostnames must not be numeric-suffix
+extensions of each other (e.g. "talos-cp" and "talos-cp-2" may not coexist),
+because a Tailscale dedup suffix is indistinguishable from such a sibling
+name. The script exits with an error if TS_CLEANUP_CLUSTER_HOSTNAMES violates
+this.
 
 Requires:
   - TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET env vars
   - 'devices:core' scope on the OAuth client (for DELETE)
   - TS_CLEANUP_HOSTNAME env var (the expected hostname, without suffix)
 
+Optional:
+  - TS_CLEANUP_CLUSTER_HOSTNAMES: comma-separated hostnames of ALL cluster
+    nodes (sibling-protection list; single-node setups pass just the one)
+  - TS_CLEANUP_ONLINE_GRACE_MINUTES: recently-online threshold (default 10)
+
 Exit codes:
   0 - success (including "nothing to delete")
-  1 - error (auth failure, API error, missing env vars)
+  1 - error (auth failure, API error, missing env vars, naming conflict)
 """
 
 import json
@@ -30,6 +48,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+
+DEFAULT_ONLINE_GRACE_MINUTES = 10
 
 API_TIMEOUT = 10  # seconds — fail fast if Tailscale API is unreachable
 API_RETRIES = 3  # transient-failure retries (URLError / 5xx) with short backoff
@@ -123,19 +144,95 @@ def delete_device(token: str, device_id: str) -> None:
         raise
 
 
-def find_stale_devices(devices: list, hostname: str) -> list:
-    """Find devices matching hostname exactly or with numeric suffix (e.g., -1, -2)."""
-    pattern = re.compile(rf"^{re.escape(hostname)}(-\d+)?$")
-    return [d for d in devices if pattern.match(d.get("hostname", ""))]
+def _parse_last_seen(value):
+    """Parse the Tailscale API lastSeen timestamp (RFC 3339); None if unparseable."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def find_naming_conflicts(cluster_hostnames: list) -> list:
+    """Return (base, extension) pairs where one node name numeric-suffix-extends another.
+
+    Such pairs make a Tailscale dedup suffix indistinguishable from a sibling
+    node, so they are a configuration error (see module docstring).
+    """
+    conflicts = []
+    for base in cluster_hostnames:
+        for other in cluster_hostnames:
+            if other != base and re.fullmatch(rf"{re.escape(base)}-\d+", other):
+                conflicts.append((base, other))
+    return conflicts
+
+
+def select_stale_devices(
+    devices: list,
+    hostname: str,
+    cluster_hostnames: list = (),
+    now: datetime = None,
+    online_grace: timedelta = timedelta(minutes=DEFAULT_ONLINE_GRACE_MINUTES),
+):
+    """Split devices into (to_delete, skipped) for one node's cleanup.
+
+    Exact hostname matches are always deleted (the node's own previous
+    incarnation — this cleanup runs immediately before its reinstall).
+    Dedup-suffixed matches (hostname-N) are deleted only when they are
+    provably NOT a live machine: never when the name belongs to another
+    cluster node, and never when the device was recently online or its
+    lastSeen is unavailable. `skipped` holds (device, reason) tuples.
+    """
+    siblings = {h for h in cluster_hostnames if h and h != hostname}
+    now = now or datetime.now(timezone.utc)
+    suffixed = re.compile(rf"^{re.escape(hostname)}-\d+$")
+
+    to_delete, skipped = [], []
+    for d in devices:
+        h = d.get("hostname", "")
+        if h == hostname:
+            to_delete.append(d)
+        elif suffixed.match(h):
+            if h in siblings:
+                skipped.append((d, "name belongs to another cluster node"))
+                continue
+            last_seen = _parse_last_seen(d.get("lastSeen"))
+            if last_seen is None:
+                skipped.append((d, "lastSeen unavailable — not provably stale"))
+            elif now - last_seen < online_grace:
+                skipped.append((d, f"recently online (lastSeen {d.get('lastSeen')})"))
+            else:
+                to_delete.append(d)
+    return to_delete, skipped
 
 
 def main() -> None:
     hostname = os.environ.get("TS_CLEANUP_HOSTNAME", "")
     client_id = os.environ.get("TAILSCALE_OAUTH_CLIENT_ID", "")
     client_secret = os.environ.get("TAILSCALE_OAUTH_CLIENT_SECRET", "")
+    cluster_hostnames = [
+        h.strip()
+        for h in os.environ.get("TS_CLEANUP_CLUSTER_HOSTNAMES", "").split(",")
+        if h.strip()
+    ]
+    grace_minutes = int(
+        os.environ.get("TS_CLEANUP_ONLINE_GRACE_MINUTES", DEFAULT_ONLINE_GRACE_MINUTES)
+    )
 
     if not hostname:
         print("ERROR: TS_CLEANUP_HOSTNAME not set", file=sys.stderr)
+        sys.exit(1)
+
+    conflicts = find_naming_conflicts(cluster_hostnames or [hostname])
+    if conflicts:
+        for base, extension in conflicts:
+            print(
+                f"ERROR: node hostname '{extension}' is a numeric-suffix extension "
+                f"of '{base}' — indistinguishable from a Tailscale dedup suffix. "
+                "Rename one of the nodes (see script docstring).",
+                file=sys.stderr,
+            )
         sys.exit(1)
 
     if not client_id or not client_secret:
@@ -144,7 +241,18 @@ def main() -> None:
 
     token = get_oauth_token(client_id, client_secret)
     devices = list_devices(token)
-    stale = find_stale_devices(devices, hostname)
+    stale, skipped = select_stale_devices(
+        devices,
+        hostname,
+        cluster_hostnames,
+        online_grace=timedelta(minutes=grace_minutes),
+    )
+
+    for d, reason in skipped:
+        print(
+            f"WARNING: skipping device {d.get('id', '?')} ({d.get('hostname', '?')}): {reason}",
+            file=sys.stderr,
+        )
 
     if not stale:
         print(f"No stale Tailscale devices found for '{hostname}'")
@@ -155,7 +263,7 @@ def main() -> None:
         device_hostname = d.get("hostname", "unknown")
         print(f"Deleting stale Tailscale device: {device_id} ({device_hostname})")
         delete_device(token, device_id)
-        print(f"  deleted.")
+        print("  deleted.")
 
     print(f"Cleaned up {len(stale)} stale device(s).")
 

@@ -47,9 +47,17 @@ provider "tailscale" {
 # which breaks data.tailscale_device hostname lookup — it finds the STALE device
 # with the wrong IP instead of the new one.
 #
-# This resource runs scripts/tailscale-device-cleanup.py to delete any existing
-# devices matching the hostname (exact or suffixed) before the reinstall creates
-# a new one. Requires 'devices:core' OAuth scope for DELETE.
+# This resource runs scripts/tailscale-device-cleanup.py to delete stale
+# devices for THIS node before the reinstall creates a new one: exact hostname
+# matches always, dedup-suffixed matches (hostname-N) only when provably stale
+# (never a live sibling's name, never recently online — #312). Requires
+# 'devices:core' OAuth scope for DELETE.
+#
+# Multi-node (module extraction, #322): this becomes a per-node resource — one
+# cleanup per node, triggered by that node's OWN reinstall trigger, with
+# TS_CLEANUP_CLUSTER_HOSTNAMES carrying every node's hostname. Node hostnames
+# must never be numeric-suffix extensions of each other (talos-cp +
+# talos-cp-2 is a config error the script rejects).
 resource "terraform_data" "tailscale_device_cleanup" {
   count = local.tailscale_enabled ? 1 : 0
 
@@ -61,6 +69,8 @@ resource "terraform_data" "tailscale_device_cleanup" {
     command = "python3 ${path.module}/scripts/tailscale-device-cleanup.py"
     environment = {
       TS_CLEANUP_HOSTNAME = var.tailscale_hostname
+      # Single node today; the module refactor extends this to all nodes.
+      TS_CLEANUP_CLUSTER_HOSTNAMES = var.tailscale_hostname
     }
   }
 }
