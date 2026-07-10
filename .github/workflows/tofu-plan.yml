@@ -5,8 +5,10 @@
 #
 # Gated on the GITOPS_ENABLED repository variable — set it to "true" only
 # after populating the production-environment secrets listed in
-# docs/guides/GITOPS_SETUP.md. Fork PRs cannot access secrets, so they get
-# no plan (expected; solo-maintainer repo).
+# docs/guides/GITOPS_SETUP.md. Fork PRs are skipped explicitly (same-repo
+# guard in the job `if`): they could never access secrets anyway, but
+# without the guard they would start the job and fail with a confusing
+# red X on the contributor's PR (#313).
 #
 # CAVEAT (public repo): plan output on changes may include infrastructure
 # identifiers — see the hardening issue referenced in GITOPS_SETUP.md.
@@ -26,7 +28,7 @@ permissions:
 jobs:
   plan:
     name: Plan
-    if: vars.GITOPS_ENABLED == 'true'
+    if: vars.GITOPS_ENABLED == 'true' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production
