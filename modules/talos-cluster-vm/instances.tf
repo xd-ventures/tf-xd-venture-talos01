@@ -22,10 +22,9 @@ resource "openstack_compute_instance_v2" "cp" {
   }
 
   # Talos is immutable + API-managed; no cloud-init user_data. The instance
-  # boots to maintenance mode and waits for talosctl apply-config.
-  lifecycle {
-    ignore_changes = [image_id]
-  }
+  # boots to maintenance mode and waits for talosctl apply-config. A change
+  # to image_id (i.e. a new Talos version) intentionally replaces the VM —
+  # this module has no in-place OS-upgrade path, so recreation is correct.
 }
 
 resource "openstack_compute_instance_v2" "worker" {
@@ -37,10 +36,6 @@ resource "openstack_compute_instance_v2" "worker" {
 
   network {
     name = var.external_network_name
-  }
-
-  lifecycle {
-    ignore_changes = [image_id]
   }
 }
 
