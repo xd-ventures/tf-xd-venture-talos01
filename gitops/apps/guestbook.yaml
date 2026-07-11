@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# Guestbook — the first Git-managed app (#319 acceptance): proves the ArgoCD
+# GitOps loop end to end (pull from Git → sync → self-heal). An upstream
+# example, deliberately stateless; retire it once real add-ons (e.g. the
+# storage layer, #320) populate this directory.
+#
+# NOTE: this replaces the argocd_deploy_guestbook Terraform path — the argocd
+# TF provider's ephemeral port-forward is broken in this environment, and apps
+# belong in Git, not in provider state, anyway.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guestbook
+  namespace: argocd
+  labels:
+    example: "true"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/argoproj/argocd-example-apps.git
+    path: guestbook
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: guestbook
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        maxDuration: 3m
+        factor: 2
