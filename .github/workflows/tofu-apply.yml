@@ -15,7 +15,7 @@ on:
     branches: [main]
     paths:
       - '**/*.tf'
-      - 'templates/**'
+      - '**/templates/**'
       - '.terraform.lock.hcl'
 
 # Shared group with the drift workflow: state-mutating operations are
@@ -68,12 +68,13 @@ jobs:
           BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
           TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
         run: |
-          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
-          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
-          chmod 600 backend.tfvars terraform.tfvars
+          printf '%s\n' "$BACKEND_TFVARS" > infra/backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > infra/terraform.tfvars
+          chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu apply
         uses: dflook/tofu-apply@c254eb5b2e48978c05587373100d26b604c2182d # v2.2.3
         with:
           label: talos01
+          path: infra
           backend_config_file: backend.tfvars

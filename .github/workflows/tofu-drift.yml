@@ -67,15 +67,16 @@ jobs:
           BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
           TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
         run: |
-          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
-          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
-          chmod 600 backend.tfvars terraform.tfvars
+          printf '%s\n' "$BACKEND_TFVARS" > infra/backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > infra/terraform.tfvars
+          chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu check
         id: check
         uses: dflook/tofu-check@911a3cb9355a0f21f333b3fb4ec506df6a2e9a52 # v2.2.3
         with:
           # tofu-check does not accept a `label` input (unlike tofu-plan/apply)
+          path: infra
           backend_config_file: backend.tfvars
 
       - name: Open or update drift issue
