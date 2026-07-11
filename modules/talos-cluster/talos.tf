@@ -238,6 +238,21 @@ locals {
     }
   }) : ""
 
+  # Explicit storage-node label (#320): the zfs-pool Job's nodeAffinity and the
+  # zfs-localpv StorageClass allowedTopologies key on this label instead of the
+  # control-plane role — prep for the future CP/worker split. Talos applies
+  # machine.nodeLabels itself (survives reinstall, no kubelet self-label
+  # restriction). Live-appliable machine config — deliberately NOT in the
+  # reinstall trigger (adding this patch must never cascade a reinstall,
+  # cf. #268/#205).
+  zfs_node_label_config_patch = var.zfs_pool_enabled ? yamlencode({
+    machine = {
+      nodeLabels = {
+        "xd-ventures.dev/zfs-pool" = var.zfs_pool_name
+      }
+    }
+  }) : ""
+
   # Cilium installation manifest
   # Uses Cilium CLI job to install Cilium with VXLAN tunnel routing
   # (pinned explicitly — see ADR-0015)
@@ -318,6 +333,7 @@ locals {
       local.certsans_config_patch,
       local.extra_host_entries_config_patch,
       local.zfs_config_patch,
+      local.zfs_node_label_config_patch,
       local.cluster_config_patch,
       local.ephemeral_volume_config_patch,
       local.talos_backup_config_patch,

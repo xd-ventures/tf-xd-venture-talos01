@@ -4,8 +4,12 @@ One ArgoCD `Application` manifest per cluster add-on. The app-of-apps root
 (`../bootstrap/root-app.yaml`) syncs this directory recursively, so any
 `Application` here is managed by ArgoCD automatically.
 
-This directory is intentionally empty of apps for now (skeleton, #319). The
-first consumer is the storage layer — OpenEBS zfs-localpv (#320).
+Current apps:
+- `guestbook.yaml` — upstream example proving the GitOps loop (#319); retire
+  once real add-ons are established.
+- `zfs-localpv.yaml` — OpenEBS ZFS-LocalPV CSI over the existing pool (#320).
+- `storage-classes.yaml` — StorageClass + VolumeSnapshotClass from
+  `../manifests/storage/` (#320).
 
 Conventions:
 - One file per app, named after the app (e.g. `zfs-localpv.yaml`).
