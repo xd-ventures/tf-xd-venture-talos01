@@ -344,3 +344,31 @@ output "argocd_guestbook_status" {
     sync_command = null
   }
 }
+
+# =============================================================================
+# etcd Backups (talos-backup — #316)
+# =============================================================================
+
+output "talos_backup_info" {
+  description = "etcd backup status (non-sensitive; bucket name deliberately omitted — public repo, #300)."
+  value = var.talos_backup_enabled ? {
+    enabled  = true
+    schedule = var.talos_backup_schedule
+    region   = var.talos_backup_s3_region
+    } : {
+    enabled  = false
+    schedule = null
+    region   = null
+  }
+}
+
+output "talos_backup_secret_command" {
+  description = "One-time command creating the in-cluster Secret for the backup CronJobs. Export TALOS_BACKUP_AGE_SECRET_KEY from the password manager first (ADR-0018 decision 4 custody); the age key placeholder expands in YOUR shell, never in state."
+  sensitive   = true
+  value = var.talos_backup_enabled ? join(" ", [
+    "kubectl -n talos-backup create secret generic talos-backup-s3",
+    "--from-literal=AWS_ACCESS_KEY_ID=${ovh_cloud_project_user_s3_credential.talos_backup[0].access_key_id}",
+    "--from-literal=AWS_SECRET_ACCESS_KEY=${ovh_cloud_project_user_s3_credential.talos_backup[0].secret_access_key}",
+    "--from-literal=AGE_SECRET_KEY=\"$TALOS_BACKUP_AGE_SECRET_KEY\"",
+  ]) : null
+}

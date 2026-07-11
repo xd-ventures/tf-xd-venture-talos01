@@ -221,6 +221,23 @@ locals {
     }
   }) : ""
 
+  # Talos API access for etcd backups (ADR-0018 decision 1, #316).
+  # Grants ONLY the os:etcd:backup role, only to the talos-backup namespace.
+  # Live-appliable machine config — deliberately NOT in the reinstall trigger
+  # (main.tf tracks specific patch hashes; adding this patch must never
+  # cascade a reinstall, cf. #268/#205).
+  talos_backup_config_patch = var.talos_backup_enabled ? yamlencode({
+    machine = {
+      features = {
+        kubernetesTalosAPIAccess = {
+          enabled                     = true
+          allowedRoles                = ["os:etcd:backup"]
+          allowedKubernetesNamespaces = ["talos-backup"]
+        }
+      }
+    }
+  }) : ""
+
   # Cilium installation manifest
   # Uses Cilium CLI job to install Cilium with VXLAN tunnel routing
   # (pinned explicitly — see ADR-0015)
@@ -238,6 +255,22 @@ locals {
     mount_point        = var.zfs_pool_mount_point
     disk_args          = join(" ", [for d in var.zfs_pool_disks : "${d.device}:${d.partition}"])
     zfs_pool_job_image = var.zfs_pool_job_image
+  }) : ""
+
+  # etcd backup CronJobs (talos-backup + daily decrypt-and-verify).
+  # Non-secret manifests only — the S3/age Secret is created out-of-band
+  # from the sensitive `talos_backup_secret_command` output, so no secret
+  # material enters machine config, state-rendered manifests, or plan diffs.
+  # See templates/talos-backup.yaml.tftpl and ADR-0018 decision 1.
+  talos_backup_manifest = var.talos_backup_enabled ? templatefile("${path.module}/templates/talos-backup.yaml.tftpl", {
+    backup_image   = var.talos_backup_image
+    verify_image   = var.talos_backup_verify_image
+    schedule       = var.talos_backup_schedule
+    bucket         = var.talos_backup_s3_bucket
+    s3_region      = var.talos_backup_s3_region
+    s3_endpoint    = local.talos_backup_s3_endpoint
+    cluster_name   = var.cluster_name
+    age_public_key = var.talos_backup_age_public_key
   }) : ""
 
   # Cluster-level config patch: CNI, inline manifests, and scheduling
@@ -267,7 +300,8 @@ locals {
       # Inline manifests: Cilium CNI install + optional ZFS pool setup
       inlineManifests = concat(
         [{ name = "cilium-install", contents = local.cilium_install_manifest }],
-        var.zfs_pool_enabled ? [{ name = "zfs-pool-setup", contents = local.zfs_pool_manifest }] : []
+        var.zfs_pool_enabled ? [{ name = "zfs-pool-setup", contents = local.zfs_pool_manifest }] : [],
+        var.talos_backup_enabled ? [{ name = "talos-backup", contents = local.talos_backup_manifest }] : []
       )
       # Skip waiting for CNI during bootstrap (Cilium installs after API server)
       allowSchedulingOnControlPlanes = true
@@ -286,6 +320,7 @@ locals {
       local.zfs_config_patch,
       local.cluster_config_patch,
       local.ephemeral_volume_config_patch,
+      local.talos_backup_config_patch,
     ],
     local.firewall_config_patches,
   ))
@@ -344,6 +379,15 @@ data "talos_machine_configuration" "controlplane" {
     precondition {
       condition     = !var.enable_firewall || length(local.firewall_config_patches) > 0
       error_message = "enable_firewall is true but no firewall config patches were generated."
+    }
+
+    precondition {
+      condition = !var.talos_backup_enabled || (
+        var.talos_backup_age_public_key != ""
+        && var.talos_backup_s3_bucket != ""
+        && var.ovh_cloud_project_id != ""
+      )
+      error_message = "talos_backup_enabled requires talos_backup_age_public_key, talos_backup_s3_bucket, and ovh_cloud_project_id to be set."
     }
   }
 }

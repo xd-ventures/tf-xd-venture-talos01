@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# etcd backups via siderolabs/talos-backup (ADR-0018 decision 1, #316).
+#
+# Two CronJobs in a dedicated namespace:
+#   - talos-backup: etcd snapshot -> zstd -> age encryption -> S3
+#     (encryption is ON by default in talos-backup; we never disable it —
+#     etcd contains every cluster secret)
+#   - talos-backup-verify: daily decrypt-and-verify of the LATEST snapshot
+#     (freshness + age decryption + zstd integrity + size floor), because
+#     existence is not restorability (ADR-0018: failures surface within a
+#     day, not at the next quarterly drill)
+#
+# The S3 credentials + age secret key live in Secret talos-backup-s3, which
+# is deliberately NOT managed here (no secret material in machine config or
+# plan output): create it once from the sensitive tofu output
+# `talos_backup_secret_command` — see docs and #318's runbook.
+#
+# Talos API access: the talos.dev ServiceAccount below makes Talos generate
+# a Secret with a talosconfig scoped to the os:etcd:backup role (enabled by
+# the kubernetesTalosAPIAccess machine-config patch in talos.tf).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: talos-backup
+---
+apiVersion: talos.dev/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: talos-backup-secrets
+  namespace: talos-backup
+spec:
+  roles:
+    - os:etcd:backup
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-backup
+  namespace: talos-backup
+spec:
+  schedule: "${schedule}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: talos-backup
+              image: ${backup_image}
+              env:
+                - name: BUCKET
+                  value: "${bucket}"
+                - name: AWS_REGION
+                  value: "${s3_region}"
+                - name: CUSTOM_S3_ENDPOINT
+                  value: "${s3_endpoint}"
+                - name: USE_PATH_STYLE
+                  value: "true"
+                - name: CLUSTER_NAME
+                  value: "${cluster_name}"
+                - name: ENABLE_COMPRESSION
+                  value: "true"
+                - name: AGE_X25519_PUBLIC_KEY
+                  value: "${age_public_key}"
+                - name: TALOSCONFIG
+                  value: /var/run/secrets/talos.dev/config
+              envFrom:
+                - secretRef:
+                    name: talos-backup-s3
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: talos
+                  mountPath: /.talos
+                - name: talos-secrets
+                  mountPath: /var/run/secrets/talos.dev
+                  readOnly: true
+          volumes:
+            - name: tmp
+              emptyDir: {}
+            - name: talos
+              emptyDir: {}
+            - name: talos-secrets
+              secret:
+                secretName: talos-backup-secrets
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-backup-verify
+  namespace: talos-backup
+spec:
+  # Daily, before the 06:00 UTC cluster-checks run so its result is fresh.
+  schedule: "30 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: verify
+              image: ${verify_image}
+              env:
+                - name: AWS_ENDPOINT_URL
+                  value: "${s3_endpoint}"
+                - name: AWS_DEFAULT_REGION
+                  value: "${s3_region}"
+              envFrom:
+                - secretRef:
+                    name: talos-backup-s3
+              command:
+                - /bin/sh
+                - -ec
+                # Decrypt-and-verify the latest snapshot (ADR-0018 decision 1):
+                # a dead CronJob, truncated object, or rotated-away age key must
+                # surface within a day. The age secret key is used in-cluster
+                # only (never written outside tmpfs); see ADR-0018 for the
+                # custody trade-off discussion.
+                - |
+                  apk add --no-cache aws-cli age zstd coreutils >/dev/null
+                  aws configure set default.s3.addressing_style path
+                  LATEST=$(aws s3api list-objects-v2 --bucket "${bucket}" \
+                    --prefix "${cluster_name}/" \
+                    --query 'sort_by(Contents,&LastModified)[-1].Key' --output text)
+                  if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
+                    echo "FAIL: no snapshots found under ${cluster_name}/"; exit 1
+                  fi
+                  LASTMOD=$(aws s3api list-objects-v2 --bucket "${bucket}" \
+                    --prefix "${cluster_name}/" \
+                    --query 'sort_by(Contents,&LastModified)[-1].LastModified' --output text)
+                  AGE_SECONDS=$(( $(date +%s) - $(date -d "$LASTMOD" +%s) ))
+                  if [ "$AGE_SECONDS" -gt 28800 ]; then
+                    echo "FAIL: latest snapshot is $${AGE_SECONDS}s old (> 8h): $LATEST"; exit 1
+                  fi
+                  umask 077
+                  aws s3api get-object --bucket "${bucket}" --key "$LATEST" /tmp/snap.zst.age >/dev/null
+                  printf '%s\n' "$AGE_SECRET_KEY" > /tmp/age.key
+                  age -d -i /tmp/age.key -o /tmp/snap.zst /tmp/snap.zst.age
+                  rm -f /tmp/age.key
+                  zstd -t /tmp/snap.zst
+                  SIZE=$(stat -c%s /tmp/snap.zst)
+                  if [ "$SIZE" -lt 1048576 ]; then
+                    echo "FAIL: decrypted snapshot suspiciously small ($SIZE bytes)"; exit 1
+                  fi
+                  echo "verify OK: $LATEST ($SIZE bytes decompressed-tested, $${AGE_SECONDS}s old)"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                medium: Memory

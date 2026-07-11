@@ -118,6 +118,7 @@ jobs:
           CHECK_ZFS_POOL_ENABLED: ${{ vars.ZFS_POOL_ENABLED }}
           CHECK_ZFS_POOL_NAME: ${{ vars.ZFS_POOL_NAME }}
           CHECK_ARGOCD_ENABLED: ${{ vars.ARGOCD_ENABLED }}
+          CHECK_TALOS_BACKUP_ENABLED: ${{ vars.TALOS_BACKUP_ENABLED }}
           CHECK_PUBLIC_IP: ${{ secrets.CHECK_PUBLIC_IP }}
           CHECK_TAILSCALE_IP: ${{ secrets.CHECK_TAILSCALE_IP }}
 

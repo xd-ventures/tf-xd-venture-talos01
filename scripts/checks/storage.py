@@ -1,15 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Maciej Sawicki
 
-"""ZFS storage verification.
+"""Storage & backup verification.
 
-Validates ZFS pool health and persistent volume functionality.
+Validates ZFS pool health, persistent volume functionality, and etcd
+backup recency (talos-backup CronJobs, #316 / ADR-0018).
 
 Test plan:
   1. ZFS pool is ONLINE
   2. PersistentVolume can be created and written to on ZFS mount
+  3. etcd snapshot CronJob succeeded recently (< 8h)
+  4. backup decrypt-and-verify CronJob succeeded recently (< 26h)
 """
 
+import datetime
 import json
 import time
 
@@ -22,17 +26,74 @@ def run(ctx: CheckContext, tap: TAPProducer) -> None:
     if not ctx.zfs_pool_enabled:
         tap.skip("ZFS pool is ONLINE", reason="zfs_pool_enabled=false")
         tap.skip("PV write test on ZFS mount", reason="zfs_pool_enabled=false")
+    else:
+        # 1. ZFS pool state via /proc
+        #    Talos has no shell, but /proc/spl/kstat/zfs exposes pool state.
+        pool_online = _check_pool_state(ctx, tap)
+
+        # 2. PV write test
+        if pool_online:
+            _check_pv_write(ctx, tap)
+        else:
+            tap.skip("PV write test on ZFS mount", reason="pool not ONLINE")
+
+    # 3+4. etcd backup recency (ADR-0018: a silently dead backup CronJob or
+    # an unrestorable snapshot must surface within a day, not at a drill)
+    if not ctx.talos_backup_enabled:
+        tap.skip("etcd snapshot CronJob recent", reason="talos_backup_enabled=false")
+        tap.skip("backup verify CronJob recent", reason="talos_backup_enabled=false")
+    else:
+        _check_cronjob_recency(
+            ctx, tap, "talos-backup",
+            max_age_hours=8, description="etcd snapshot CronJob recent",
+        )
+        _check_cronjob_recency(
+            ctx, tap, "talos-backup-verify",
+            max_age_hours=26, description="backup verify CronJob recent",
+        )
+
+
+def _check_cronjob_recency(
+    ctx: CheckContext,
+    tap: TAPProducer,
+    name: str,
+    max_age_hours: int,
+    description: str,
+) -> None:
+    """Assert a CronJob in the talos-backup namespace succeeded recently.
+
+    Uses status.lastSuccessfulTime — the backup Job completes only after the
+    S3 upload (and the verify Job only after a successful decrypt), so this
+    is an end-to-end freshness signal that needs no S3 credentials in CI.
+    """
+    result = run_kubectl(
+        ctx, "get", "cronjob", "-n", "talos-backup", name, "-o", "json",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        tap.not_ok(description, error=f"kubectl get cronjob {name} failed: {result.stderr.strip()}")
         return
 
-    # 1. ZFS pool state via /proc
-    #    Talos has no shell, but /proc/spl/kstat/zfs exposes pool state.
-    pool_online = _check_pool_state(ctx, tap)
+    try:
+        status = json.loads(result.stdout).get("status", {})
+    except json.JSONDecodeError:
+        tap.not_ok(description, error=f"unparseable cronjob JSON for {name}")
+        return
 
-    # 2. PV write test
-    if pool_online:
-        _check_pv_write(ctx, tap)
+    last_success = status.get("lastSuccessfulTime")
+    if not last_success:
+        tap.not_ok(description, error=f"{name} has no successful run yet")
+        return
+
+    ts = datetime.datetime.fromisoformat(last_success.replace("Z", "+00:00"))
+    age = datetime.datetime.now(datetime.timezone.utc) - ts
+    if age > datetime.timedelta(hours=max_age_hours):
+        tap.not_ok(
+            description,
+            error=f"{name} last succeeded {age.total_seconds() / 3600:.1f}h ago (max {max_age_hours}h)",
+        )
     else:
-        tap.skip("PV write test on ZFS mount", reason="pool not ONLINE")
+        tap.ok(description)
 
 
 def _check_pool_state(ctx: CheckContext, tap: TAPProducer) -> bool:

@@ -92,6 +92,7 @@ class CheckContext:
     firewall_enabled: bool = False
     zfs_pool_enabled: bool = False
     argocd_enabled: bool = False
+    talos_backup_enabled: bool = False
     zfs_pool_name: str = "tank"
 
     # Network
@@ -136,6 +137,8 @@ class CheckContext:
             zfs_pool_enabled=os.environ.get("CHECK_ZFS_POOL_ENABLED", "").lower()
             == "true",
             argocd_enabled=os.environ.get("CHECK_ARGOCD_ENABLED", "").lower()
+            == "true",
+            talos_backup_enabled=os.environ.get("CHECK_TALOS_BACKUP_ENABLED", "").lower()
             == "true",
             zfs_pool_name=_validate_pool_name(
                 os.environ.get("CHECK_ZFS_POOL_NAME", "tank"), "CHECK_ZFS_POOL_NAME"
@@ -187,6 +190,12 @@ class CheckContext:
         )
         if tailscale_ip:
             ctx.tailscale_ip = tailscale_ip
+
+        backup_info = _get(outputs, "talos_backup_info", None)
+        if isinstance(backup_info, dict):
+            ctx.talos_backup_enabled = ctx.talos_backup_enabled or bool(
+                backup_info.get("enabled")
+            )
 
         zfs_info = _get(outputs, "zfs_pool_info", None)
         if isinstance(zfs_info, dict):

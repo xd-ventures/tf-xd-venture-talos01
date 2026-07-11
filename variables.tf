@@ -398,3 +398,73 @@ variable "ephemeral_max_size" {
     error_message = "ephemeral_max_size must be a number followed by a Talos size unit (MiB, GiB, or TiB), e.g. \"100GiB\"."
   }
 }
+
+# =============================================================================
+# etcd Backups (talos-backup — ADR-0018 decision 1, #316)
+# =============================================================================
+
+variable "talos_backup_enabled" {
+  description = "Deploy the talos-backup CronJob (etcd snapshot → zstd → age → S3) plus a daily decrypt-and-verify CronJob. Requires talos_backup_age_public_key, talos_backup_s3_bucket, and ovh_cloud_project_id."
+  type        = bool
+  default     = false
+}
+
+variable "talos_backup_age_public_key" {
+  description = "age X25519 recipient (public key, age1…) that etcd snapshots are encrypted to. The PRIVATE key is never stored in this configuration — custody per ADR-0018 decision 4 (password manager + offline media)."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.talos_backup_age_public_key == "" || can(regex("^age1[a-z0-9]{58}$", var.talos_backup_age_public_key))
+    error_message = "talos_backup_age_public_key must be an age X25519 recipient (age1…, 62 chars) or empty."
+  }
+}
+
+variable "talos_backup_s3_bucket" {
+  description = "Name of the dedicated S3 bucket for etcd snapshots (created by this configuration; must be globally unique within the OVH region)."
+  type        = string
+  default     = ""
+}
+
+variable "talos_backup_s3_region" {
+  description = "OVH Object Storage region for the backup bucket (lowercase, e.g. gra / sbg / waw). Endpoint is derived as https://s3.<region>.io.cloud.ovh.net."
+  type        = string
+  default     = "gra"
+}
+
+variable "talos_backup_schedule" {
+  description = "Cron schedule for etcd snapshots (ADR-0018: every 4–6 h)."
+  type        = string
+  default     = "15 */6 * * *"
+}
+
+variable "ovh_cloud_project_id" {
+  description = "OVH Public Cloud project ID (serviceName) hosting the backup bucket and its dedicated write-only S3 user. Sensitive: infrastructure identifier in a public repo (#300)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "talos_backup_image" {
+  description = "talos-backup image (repo:tag@digest). Official Sidero image; pre-release only — the tool is minimal-but-official (ADR-0018 accepted risk, mitigated by the verify CronJob and drills)."
+  type        = string
+  # renovate: datasource=docker depName=ghcr.io/siderolabs/talos-backup
+  default = "ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7"
+
+  validation {
+    condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.talos_backup_image))
+    error_message = "talos_backup_image must be in repo:tag@sha256:<digest> form."
+  }
+}
+
+variable "talos_backup_verify_image" {
+  description = "Utility image (repo:tag@digest) for the daily decrypt-and-verify CronJob (needs apk: aws-cli, age, zstd)."
+  type        = string
+  # renovate: datasource=docker depName=alpine
+  default = "alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709"
+
+  validation {
+    condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.talos_backup_verify_image))
+    error_message = "talos_backup_verify_image must be in repo:tag@sha256:<digest> form."
+  }
+}
