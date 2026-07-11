@@ -77,7 +77,7 @@ jobs:
         with:
           # tofu-check does not accept a `label` input (unlike tofu-plan/apply)
           path: infra
-          backend_config_file: backend.tfvars
+          backend_config_file: infra/backend.tfvars
 
       - name: Open or update drift issue
         if: failure() && steps.check.outcome == 'failure'

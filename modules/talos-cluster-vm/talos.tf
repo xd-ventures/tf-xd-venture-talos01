@@ -25,6 +25,20 @@ locals {
     }
   })
 
+  # Worker nodes need the same CNI + CIDR cluster-network settings as the
+  # control plane (else kubelet derives clusterDNS from the default service
+  # subnet and pod networking diverges), but NOT the inline Cilium install or
+  # allowSchedulingOnControlPlanes.
+  worker_config_patch = yamlencode({
+    cluster = {
+      network = {
+        cni            = { name = "none" }
+        podSubnets     = [var.pod_network_cidr]
+        serviceSubnets = [var.service_network_cidr]
+      }
+    }
+  })
+
   # certSANs: every control-plane public IP + the endpoint host, so talosctl
   # and kubectl trust the cert regardless of which CP they hit.
   certsans_config_patch = yamlencode({
@@ -54,6 +68,7 @@ data "talos_machine_configuration" "worker" {
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   talos_version      = var.talos_version
   kubernetes_version = var.kubernetes_version
+  config_patches     = [local.worker_config_patch]
 }
 
 data "talos_client_configuration" "this" {
@@ -64,6 +79,9 @@ data "talos_client_configuration" "this" {
 }
 
 # Apply the control-plane config to each CP node (over its public IP).
+# depends_on the operator-access security-group rules: without them the
+# Talos API (50000) is unreachable from the apply host and this would hang
+# until timeout rather than connect once the node boots.
 resource "talos_machine_configuration_apply" "cp" {
   count                       = var.control_plane_count
   client_configuration        = talos_machine_secrets.this.client_configuration
@@ -71,7 +89,17 @@ resource "talos_machine_configuration_apply" "cp" {
   endpoint                    = local.cp_ips[count.index]
   node                        = local.cp_ips[count.index]
 
-  depends_on = [openstack_compute_instance_v2.cp]
+  depends_on = [
+    openstack_compute_instance_v2.cp,
+    openstack_networking_secgroup_rule_v2.talos_api,
+  ]
+
+  lifecycle {
+    precondition {
+      condition     = length(var.allowed_api_cidrs) > 0
+      error_message = "allowed_api_cidrs is empty: the Talos API (50000) would be unreachable from the apply host and this apply would hang. Set it to the operator/CI public IP (e.g. [\"1.2.3.4/32\"])."
+    }
+  }
 }
 
 resource "talos_machine_configuration_apply" "worker" {
@@ -81,7 +109,10 @@ resource "talos_machine_configuration_apply" "worker" {
   endpoint                    = local.worker_ips[count.index]
   node                        = local.worker_ips[count.index]
 
-  depends_on = [openstack_compute_instance_v2.worker]
+  depends_on = [
+    openstack_compute_instance_v2.worker,
+    openstack_networking_secgroup_rule_v2.talos_api,
+  ]
 }
 
 # Bootstrap etcd on exactly one control-plane node (the seed). Runs once.

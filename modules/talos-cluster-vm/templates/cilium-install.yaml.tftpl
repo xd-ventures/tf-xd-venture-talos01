@@ -52,22 +52,33 @@ spec:
             - /bin/sh
             - -ec
             - |
-              cilium install --version ${cilium_version} \
+              # Same flags on both paths (positional args): a bare
+              # `cilium upgrade` would drop every --set and revert
+              # cgroup.autoMount to its default, re-breaking the Talos
+              # datapath on every re-run (cf. #289).
+              set -- --version ${cilium_version} \
                 --set ipam.mode=kubernetes \
                 --set kubeProxyReplacement=false \
                 --set cgroup.autoMount.enabled=false \
-                --set cgroup.hostRoot=/sys/fs/cgroup \
-              || cilium upgrade --version ${cilium_version}
+                --set cgroup.hostRoot=/sys/fs/cgroup
+              cilium install "$@" || cilium upgrade "$@"
               # On OVH Talos VMs the default capability-scoped security
               # contexts fail at container init ("unable to apply caps:
               # operation not permitted" — the hardening that works on
-              # baremetal does not on these VMs). Run the agent + its init
-              # containers privileged, which succeeds. Verified end-to-end
-              # (3 nodes Ready). Tracked as a follow-up to find the minimal
-              # capability set instead of privileged.
-              kubectl -n kube-system patch daemonset cilium --type=json -p '[
-                {"op":"replace","path":"/spec/template/spec/containers/0/securityContext","value":{"privileged":true}},
-                {"op":"replace","path":"/spec/template/spec/initContainers/3/securityContext","value":{"privileged":true}}
-              ]' || true
+              # baremetal does not on these VMs). Run the agent + its
+              # clean-cilium-state init container privileged, which succeeds.
+              # Verified end-to-end (3 nodes Ready). The clean-cilium-state
+              # index (3) is stable for the pinned cilium_version; #356 tracks
+              # both a minimal-capability set and a name-based patch.
+              AGENT=$(kubectl -n kube-system get ds cilium \
+                -o jsonpath='{range .spec.template.spec.containers[*]}{.name} {end}' \
+                | tr ' ' '\n' | grep -nx cilium-agent | cut -d: -f1)
+              CLEAN=$(kubectl -n kube-system get ds cilium \
+                -o jsonpath='{range .spec.template.spec.initContainers[*]}{.name} {end}' \
+                | tr ' ' '\n' | grep -nx clean-cilium-state | cut -d: -f1)
+              kubectl -n kube-system patch daemonset cilium --type=json -p "[
+                {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$((AGENT-1))/securityContext\",\"value\":{\"privileged\":true}},
+                {\"op\":\"replace\",\"path\":\"/spec/template/spec/initContainers/$((CLEAN-1))/securityContext\",\"value\":{\"privileged\":true}}
+              ]" || true
               kubectl -n kube-system rollout status daemonset/cilium --timeout=3m
               cilium status --wait --wait-duration 3m

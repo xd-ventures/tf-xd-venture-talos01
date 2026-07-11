@@ -76,4 +76,4 @@ jobs:
         with:
           label: talos01
           path: infra
-          backend_config_file: backend.tfvars
+          backend_config_file: infra/backend.tfvars
