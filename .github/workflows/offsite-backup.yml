@@ -72,8 +72,20 @@ jobs:
           printf '%s\n' "$BACKEND_TFVARS" > /tmp/backend.tfvars
           STATE_ENDPOINT=$(sed -nE 's/^\s*s3\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
           STATE_BUCKET=$(sed -nE 's/^\s*bucket\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
-          OVH_REGION=$(sed -nE 's/^\s*region\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
+          STATE_REGION=$(sed -nE 's/^\s*region\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
+          # State object key: single source of truth is infra/backend.tf; parse
+          # it here instead of duplicating the literal path.
+          STATE_KEY=$(sed -nE 's/^\s*key\s*=\s*"([^"]+)".*/\1/p' infra/backend.tf | head -1)
+          # Each remote's region is parsed from its OWN endpoint host, so the OVH
+          # etcd and state buckets need not share a region (SigV4 signs with the
+          # region). Fall back to the state region if the host is atypical.
+          OVH_ETCD_REGION=$(printf '%s' "$OVH_S3_ENDPOINT" | sed -nE 's#https://s3\.([^.]+)\.io\.cloud\.ovh\.net#\1#p')
+          OVH_ETCD_REGION=${OVH_ETCD_REGION:-$STATE_REGION}
           B2_REGION=$(printf '%s' "$B2_ENDPOINT" | sed -nE 's#https://s3\.([^.]+)\.backblazeb2\.com#\1#p')
+          # Fail fast with a clear message if a required value failed to parse.
+          : "${STATE_ENDPOINT:?could not parse s3 endpoint from backend.tfvars}"
+          : "${STATE_BUCKET:?could not parse bucket from backend.tfvars}"
+          : "${STATE_KEY:?could not parse key from infra/backend.tf}"
           # STATE_BUCKET is derived from a secret, so it is not auto-masked;
           # mask it so a later rclone error path cannot leak it (public repo, #300).
           echo "::add-mask::${STATE_BUCKET}"
@@ -84,7 +96,7 @@ jobs:
           provider = Other
           access_key_id = ${OVH_ETCD_KEY_ID}
           secret_access_key = ${OVH_ETCD_SECRET}
-          region = ${OVH_REGION}
+          region = ${OVH_ETCD_REGION}
           endpoint = ${OVH_S3_ENDPOINT}
           force_path_style = true
 
@@ -93,7 +105,7 @@ jobs:
           provider = Other
           access_key_id = ${STATE_KEY_ID}
           secret_access_key = ${STATE_SECRET}
-          region = ${OVH_REGION}
+          region = ${STATE_REGION}
           endpoint = ${STATE_ENDPOINT}
           force_path_style = true
 
@@ -108,6 +120,7 @@ jobs:
           upload_cutoff = 0
           EOF
           echo "STATE_BUCKET=${STATE_BUCKET}" >> "$GITHUB_ENV"
+          echo "STATE_KEY=${STATE_KEY}" >> "$GITHUB_ENV"
 
       - name: Replicate etcd snapshots (OVH -> B2, already encrypted)
         run: |
@@ -127,7 +140,7 @@ jobs:
           WORK=$(mktemp -d)
           # OpenTofu S3 state uses SSE-S3, so the GET returns plaintext state
           # (machine secrets) — encrypt it client-side before it leaves.
-          rclone copyto "ovh_state:${STATE_BUCKET}/talos-cluster/terraform.tfstate" "$WORK/terraform.tfstate"
+          rclone copyto "ovh_state:${STATE_BUCKET}/${STATE_KEY}" "$WORK/terraform.tfstate"
           printf '%s\n' "$TERRAFORM_TFVARS" > "$WORK/terraform.tfvars"
           printf '%s\n' "$BACKEND_TFVARS" > "$WORK/backend.tfvars"
           git bundle create "$WORK/repo.bundle" --all
@@ -138,6 +151,9 @@ jobs:
           rclone copyto "$WORK/config-bundle.tar.gz.age" \
             "b2:${B2_BUCKET}/config/${DAY}/config-bundle.tar.gz.age" --s3-no-check-bucket
           rm -rf "$WORK"
+          # Export the day used so the verify step checks the exact path written,
+          # even if the job crosses UTC midnight between steps.
+          echo "DAY=${DAY}" >> "$GITHUB_ENV"
 
       - name: Verify freshness in B2
         run: |
@@ -151,7 +167,8 @@ jobs:
           AGE_H=$(python3 -c "import datetime as d; t=d.datetime.fromisoformat('$NEWEST'.replace('Z','+00:00')); print(int((d.datetime.now(d.timezone.utc)-t).total_seconds()//3600))")
           echo "newest etcd snapshot in B2 is ${AGE_H}h old"
           [ "$AGE_H" -le 26 ] || { echo "FAIL: newest etcd snapshot is ${AGE_H}h old (> 26h)"; exit 1; }
-          # Today's config bundle must exist.
-          rclone lsf "b2:${B2_BUCKET}/config/$(date -u +%F)/" | grep -q config-bundle.tar.gz.age \
-            || { echo "FAIL: today's config bundle missing"; exit 1; }
+          # Today's config bundle must exist. DAY is exported by the upload step,
+          # so this checks the exact path written (no UTC-midnight race).
+          rclone lsf "b2:${B2_BUCKET}/config/${DAY}/" | grep -q config-bundle.tar.gz.age \
+            || { echo "FAIL: config bundle for ${DAY} missing"; exit 1; }
           echo "offsite backup verified: etcd + config bundle present and fresh"
