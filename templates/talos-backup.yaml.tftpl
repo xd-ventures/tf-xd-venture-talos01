@@ -54,6 +54,9 @@ spec:
           containers:
             - name: talos-backup
               image: ${backup_image}
+              # The binary writes its snapshot temp file to the CWD; the
+              # scratch image's / is unwritable by uid 1000 — work in /tmp.
+              workingDir: /tmp
               env:
                 - name: BUCKET
                   value: "${bucket}"
