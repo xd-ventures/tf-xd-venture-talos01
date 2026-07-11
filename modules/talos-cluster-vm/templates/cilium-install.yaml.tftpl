@@ -1,5 +1,8 @@
 # Cilium install Job (multi-node VM cluster). Runs the cilium CLI once against
 # the in-cluster API to install Cilium; idempotent install-or-upgrade.
+# The Talos-specific flags (cgroup.autoMount off + hostRoot, agent
+# capabilities) are REQUIRED — Talos mounts cgroupv2 differently and the
+# mount-cgroup init container fails without them.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -52,5 +55,9 @@ spec:
               cilium install --version ${cilium_version} \
                 --set ipam.mode=kubernetes \
                 --set kubeProxyReplacement=false \
+                --set cgroup.autoMount.enabled=false \
+                --set cgroup.hostRoot=/sys/fs/cgroup \
+                --set "securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
+                --set "securityContext.capabilities.cleanCiliumState={NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
               || cilium upgrade --version ${cilium_version}
               cilium status --wait --wait-duration 3m
