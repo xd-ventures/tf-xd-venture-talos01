@@ -57,7 +57,17 @@ spec:
                 --set kubeProxyReplacement=false \
                 --set cgroup.autoMount.enabled=false \
                 --set cgroup.hostRoot=/sys/fs/cgroup \
-                --set "securityContext.capabilities.ciliumAgent={CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
-                --set "securityContext.capabilities.cleanCiliumState={NET_ADMIN,SYS_ADMIN,SYS_RESOURCE}" \
               || cilium upgrade --version ${cilium_version}
+              # On OVH Talos VMs the default capability-scoped security
+              # contexts fail at container init ("unable to apply caps:
+              # operation not permitted" — the hardening that works on
+              # baremetal does not on these VMs). Run the agent + its init
+              # containers privileged, which succeeds. Verified end-to-end
+              # (3 nodes Ready). Tracked as a follow-up to find the minimal
+              # capability set instead of privileged.
+              kubectl -n kube-system patch daemonset cilium --type=json -p '[
+                {"op":"replace","path":"/spec/template/spec/containers/0/securityContext","value":{"privileged":true}},
+                {"op":"replace","path":"/spec/template/spec/initContainers/3/securityContext","value":{"privileged":true}}
+              ]' || true
+              kubectl -n kube-system rollout status daemonset/cilium --timeout=3m
               cilium status --wait --wait-duration 3m
