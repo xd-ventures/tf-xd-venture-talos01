@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Maciej Sawicki
 
-# GitOps verification: this comment triggered the first dflook plan/apply run (#279).
+# Consumer root: provider requirements and configuration for the
+# xd-ventures single-node Talos cluster. The cluster itself is the
+# talos-cluster module (see main.tf); providers are configured here and
+# inherited by the module (default, unaliased).
 
 terraform {
   # >= 1.10 required for native S3 state locking (use_lockfile in backend.tf)
@@ -54,6 +57,13 @@ provider "talos" {
   # No authentication required for basic usage
 }
 
+# Tailscale provider (OAuth client via TAILSCALE_OAUTH_CLIENT_ID/SECRET env
+# vars). Configured here and inherited by the talos-cluster module. See
+# ADR-0008 for the authentication decision.
+provider "tailscale" {
+  # Auth configured via environment variables
+}
+
 # Shodan provider configuration
 # Set api_key via TF_VAR_shodan_api_key in .env or -var flag
 provider "shodan" {
@@ -61,7 +71,7 @@ provider "shodan" {
 }
 
 # Kubernetes provider configuration
-# Uses kubeconfig from Talos cluster after bootstrap
+# Uses kubeconfig from the Talos cluster (module output) after bootstrap
 provider "kubernetes" {
   host                   = local.argocd_enabled ? local.k8s_host : null
   cluster_ca_certificate = local.argocd_enabled ? local.k8s_cluster_ca_certificate : null

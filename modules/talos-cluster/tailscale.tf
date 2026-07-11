@@ -1,33 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Maciej Sawicki
 
-# Tailscale Provider Configuration
-#
-# Authentication: OAuth Client (RECOMMENDED)
-# See ADR-0008 for decision rationale.
-#
-# Setup:
-# 1. Create ACL policy for tag ownership:
-#    {"tagOwners": {"tag:k8s-cluster": ["tag:terraform"], "tag:terraform": []}}
-#
-# 2. Create OAuth client at: Tailscale Admin -> Settings -> OAuth clients
-#    - Scopes: auth_keys + devices:read + devices:core (recommended)
-#      devices:core enables automated stale device cleanup on reinstall (see #156)
-#    - Tags: tag:terraform
-#
-# 3. Set environment variables:
-#    - TAILSCALE_OAUTH_CLIENT_ID="..."
-#    - TAILSCALE_OAUTH_CLIENT_SECRET="..."
-#
-# Why OAuth over API Key?
-# - Scoped permissions (auth_keys only vs full admin)
-# - Non-expiring credentials
-# - Tailnet-associated, not user-associated
-# - Official Tailscale recommendation for automation
-
-provider "tailscale" {
-  # Auth configured via environment variables
-}
+# Tailscale resources for the cluster nodes.
+# The tailscale provider itself is configured in the CONSUMER root
+# (a reusable module must not declare provider blocks). See ADR-0008 for
+# the OAuth-client authentication decision.
 
 # Generate a pre-authentication key for Talos cluster nodes
 # This key is consumed once during bootstrap (TS_AUTH_ONCE=true) and has no value after.
