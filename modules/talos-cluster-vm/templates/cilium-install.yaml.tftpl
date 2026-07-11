@@ -1,0 +1,56 @@
+# Cilium install Job (multi-node VM cluster). Runs the cilium CLI once against
+# the in-cluster API to install Cilium; idempotent install-or-upgrade.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium-installer
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cilium-installer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: cilium-installer
+    namespace: kube-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cilium-install
+  namespace: kube-system
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: cilium-installer
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: cilium
+          image: ${cilium_cli_image}
+          env:
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cilium install --version ${cilium_version} \
+                --set ipam.mode=kubernetes \
+                --set kubeProxyReplacement=false \
+              || cilium upgrade --version ${cilium_version}
+              cilium status --wait --wait-duration 3m
