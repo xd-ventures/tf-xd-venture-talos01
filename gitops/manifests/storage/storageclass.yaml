@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# zfs-localpv StorageClass over the existing mirror pool (#320).
+#
+# allowedTopologies keys on the xd-ventures.dev/zfs-pool node label (set via
+# Talos machine.nodeLabels) — provisioning is restricted to the node carrying
+# the pool WITHOUT hardcoding a node identifier in this public repo (#300).
+# WaitForFirstConsumer defers binding until a pod is scheduled, the correct
+# mode for topology-constrained local storage.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: openebs-zfspv
+  annotations:
+    # Only StorageClass in the cluster — make it the default.
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: zfs.csi.openebs.io
+parameters:
+  poolname: "tank"
+  fstype: "zfs"
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: xd-ventures.dev/zfs-pool
+        values:
+          - "tank"
