@@ -102,3 +102,12 @@ enable_firewall = false  # Set to true ONLY after verifying Tailscale access wor
 #   { device = "/dev/nvme0n1", partition = 3 },  # Third partition on OS disk
 #   { device = "/dev/nvme1n1", partition = 1 },  # First partition on data disk
 # ]
+
+# -----------------------------------------------------------------------------
+# etcd backups (talos-backup — ADR-0018, #316)
+# -----------------------------------------------------------------------------
+# talos_backup_enabled        = true
+# talos_backup_age_public_key = "age1..." # public key only; PRIVATE key custody per ADR-0018 decision 4
+# talos_backup_s3_bucket      = "my-cluster-etcd-backups"
+# talos_backup_s3_region      = "gra"
+# ovh_cloud_project_id        = "<public-cloud-project-id>" # identifier — keep out of Git (#300)
