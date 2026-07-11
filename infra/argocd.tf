@@ -17,13 +17,13 @@ locals {
 
   # Parse kubeconfig YAML to extract authentication details
   # Only parse when ArgoCD is enabled to avoid errors during initial bootstrap
-  kubeconfig_parsed = local.argocd_enabled ? yamldecode(talos_cluster_kubeconfig.this.kubeconfig_raw) : null
+  kubeconfig_parsed = local.argocd_enabled ? yamldecode(module.talos.kubeconfig_raw) : null
 
   # Kubernetes API server URL
   # When Tailscale is enabled, use the ts.net hostname for secure access
   k8s_host = local.argocd_enabled ? (
-    local.tailscale_enabled
-    ? "https://${local.tailscale_ts_net_hostname}:6443"
+    module.talos.tailscale_enabled
+    ? "https://${module.talos.tailscale_fqdn}:6443"
     : local.kubeconfig_parsed.clusters[0].cluster.server
   ) : null
 
@@ -123,7 +123,7 @@ resource "helm_release" "argocd" {
   ]
 
   depends_on = [
-    talos_cluster_kubeconfig.this,
+    module.talos,
   ]
 }
 

@@ -268,7 +268,7 @@ locals {
     schedule       = var.talos_backup_schedule
     bucket         = var.talos_backup_s3_bucket
     s3_region      = var.talos_backup_s3_region
-    s3_endpoint    = local.talos_backup_s3_endpoint
+    s3_endpoint    = "https://s3.${var.talos_backup_s3_region}.io.cloud.ovh.net"
     cluster_name   = var.cluster_name
     age_public_key = var.talos_backup_age_public_key
   }) : ""

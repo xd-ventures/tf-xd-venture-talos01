@@ -62,7 +62,7 @@ repos:
         entry: python3 scripts/validate-templates.py
         language: python
         additional_dependencies: ['pyyaml']
-        files: '^templates/.*\.tftpl$'
+        files: 'templates/.*\.tftpl$'
         pass_filenames: true
       - id: python-unit-tests
         name: Python unit tests (scripts/tests)

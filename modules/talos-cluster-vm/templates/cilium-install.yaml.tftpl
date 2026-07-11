@@ -1,0 +1,84 @@
+# Cilium install Job (multi-node VM cluster). Runs the cilium CLI once against
+# the in-cluster API to install Cilium; idempotent install-or-upgrade.
+# The Talos-specific flags (cgroup.autoMount off + hostRoot, agent
+# capabilities) are REQUIRED — Talos mounts cgroupv2 differently and the
+# mount-cgroup init container fails without them.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium-installer
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cilium-installer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: cilium-installer
+    namespace: kube-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cilium-install
+  namespace: kube-system
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: cilium-installer
+      hostNetwork: true
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: cilium
+          image: ${cilium_cli_image}
+          env:
+            - name: KUBERNETES_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: KUBERNETES_SERVICE_PORT
+              value: "6443"
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Same flags on both paths (positional args): a bare
+              # `cilium upgrade` would drop every --set and revert
+              # cgroup.autoMount to its default, re-breaking the Talos
+              # datapath on every re-run (cf. #289).
+              set -- --version ${cilium_version} \
+                --set ipam.mode=kubernetes \
+                --set kubeProxyReplacement=false \
+                --set cgroup.autoMount.enabled=false \
+                --set cgroup.hostRoot=/sys/fs/cgroup
+              cilium install "$@" || cilium upgrade "$@"
+              # On OVH Talos VMs the default capability-scoped security
+              # contexts fail at container init ("unable to apply caps:
+              # operation not permitted" — the hardening that works on
+              # baremetal does not on these VMs). Run the agent + its
+              # clean-cilium-state init container privileged, which succeeds.
+              # Verified end-to-end (3 nodes Ready). The clean-cilium-state
+              # index (3) is stable for the pinned cilium_version; #356 tracks
+              # both a minimal-capability set and a name-based patch.
+              AGENT=$(kubectl -n kube-system get ds cilium \
+                -o jsonpath='{range .spec.template.spec.containers[*]}{.name} {end}' \
+                | tr ' ' '\n' | grep -nx cilium-agent | cut -d: -f1)
+              CLEAN=$(kubectl -n kube-system get ds cilium \
+                -o jsonpath='{range .spec.template.spec.initContainers[*]}{.name} {end}' \
+                | tr ' ' '\n' | grep -nx clean-cilium-state | cut -d: -f1)
+              kubectl -n kube-system patch daemonset cilium --type=json -p "[
+                {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/$((AGENT-1))/securityContext\",\"value\":{\"privileged\":true}},
+                {\"op\":\"replace\",\"path\":\"/spec/template/spec/initContainers/$((CLEAN-1))/securityContext\",\"value\":{\"privileged\":true}}
+              ]" || true
+              kubectl -n kube-system rollout status daemonset/cilium --timeout=3m
+              cilium status --wait --wait-duration 3m

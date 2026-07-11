@@ -67,12 +67,13 @@ jobs:
           BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
           TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
         run: |
-          printf '%s\n' "$BACKEND_TFVARS" > backend.tfvars
-          printf '%s\n' "$TERRAFORM_TFVARS" > terraform.tfvars
-          chmod 600 backend.tfvars terraform.tfvars
+          printf '%s\n' "$BACKEND_TFVARS" > infra/backend.tfvars
+          printf '%s\n' "$TERRAFORM_TFVARS" > infra/terraform.tfvars
+          chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu plan
         uses: dflook/tofu-plan@3f5dc358343fb58cd60f83b019e810315aa8258f # v2.2.3
         with:
           label: talos01
-          backend_config_file: backend.tfvars
+          path: infra
+          backend_config_file: infra/backend.tfvars

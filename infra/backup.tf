@@ -20,10 +20,6 @@
 # at 14 days (~56 snapshots at the 6h cadence, a few GB at most). The
 # off-provider GFS copy (#317) carries the long retention.
 
-locals {
-  talos_backup_s3_endpoint = "https://s3.${var.talos_backup_s3_region}.io.cloud.ovh.net"
-}
-
 resource "ovh_cloud_project_storage" "talos_backup" {
   count = var.talos_backup_enabled ? 1 : 0
 

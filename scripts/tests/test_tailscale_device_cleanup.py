@@ -13,7 +13,7 @@ import pathlib
 import unittest
 from datetime import datetime, timedelta, timezone
 
-_SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "tailscale-device-cleanup.py"
+_SCRIPT = pathlib.Path(__file__).resolve().parent.parent.parent / "modules" / "talos-cluster" / "scripts" / "tailscale-device-cleanup.py"
 _spec = importlib.util.spec_from_file_location("tailscale_device_cleanup", _SCRIPT)
 cleanup = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cleanup)

@@ -29,7 +29,7 @@ esac
 # If no service name provided, try to get from terraform output
 if [ -z "$SERVICE_NAME" ]; then
   if command -v tofu &> /dev/null; then
-    SERVICE_NAME=$(tofu output -raw server_id 2>/dev/null || echo "")
+    SERVICE_NAME=$(tofu -chdir=infra output -raw server_id 2>/dev/null || echo "")
   fi
 fi
 

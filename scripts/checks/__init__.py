@@ -298,9 +298,17 @@ def build_redactor(ctx: "CheckContext") -> Callable[[str], str]:
 
 
 def _tofu_outputs() -> dict:
-    """Query all tofu outputs as JSON."""
+    """Query all tofu outputs as JSON.
+
+    Outputs live in the infra/ consumer root after the module extraction, so
+    run tofu there (via -chdir) rather than the invocation cwd. Harmless in CI
+    where infra/ is not initialized — the non-zero return is caught below and
+    the checks fall back to CHECK_* env inputs.
+    """
     try:
-        result = _safe_run([_resolve_binary("tofu"), "output", "-json"], timeout=30)
+        result = _safe_run(
+            [_resolve_binary("tofu"), "-chdir=infra", "output", "-json"], timeout=30
+        )
         if result.returncode != 0:
             return {}
         raw = json.loads(result.stdout)

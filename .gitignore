@@ -55,3 +55,9 @@ Thumbs.db
 # Python bytecode
 __pycache__/
 *.pyc
+
+# vm-e2e cluster (disposable e2e; local state, gitignored)
+infra/clusters/vm-e2e/*.tfstate*
+infra/clusters/vm-e2e/e2e.auto.tfvars
+infra/clusters/vm-e2e/.terraform*
+modules/*/.terraform.lock.hcl

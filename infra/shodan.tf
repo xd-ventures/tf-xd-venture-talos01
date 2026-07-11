@@ -15,8 +15,8 @@ resource "shodan_alert" "server" {
   count = var.shodan_enabled ? 1 : 0
 
   name        = "${var.cluster_name}-server"
-  description = "Monitor ${var.cluster_name} server (${ovh_dedicated_server.talos01.ip}) for accidental exposure"
-  network     = ["${ovh_dedicated_server.talos01.ip}/32"]
+  description = "Monitor ${var.cluster_name} server (${module.talos.server_ip}) for accidental exposure"
+  network     = ["${module.talos.server_ip}/32"]
   enabled     = true
 
   triggers  = var.shodan_triggers
