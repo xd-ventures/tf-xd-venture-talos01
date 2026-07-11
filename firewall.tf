@@ -27,7 +27,13 @@ locals {
       ingress    = "block"
     }),
 
-    # Allow Talos API (50000) from Tailscale and localhost
+    # Allow Talos API (50000) from Tailscale, localhost, and the pod CIDR.
+    # The pod CIDR is required for machine.features.kubernetesTalosAPIAccess
+    # (#316): Talos publishes a `talos` ClusterIP Service on 50000 that
+    # in-cluster clients (e.g. the talos-backup CronJob) dial; Cilium DNATs
+    # it to the node's apid, so the connection arrives with a pod source IP.
+    # Reachability alone grants nothing — apid enforces mutual TLS + the
+    # os:etcd:backup role. Same class as the Hubble pod-CIDR fix (#306).
     yamlencode({
       apiVersion = "v1alpha1"
       kind       = "NetworkRuleConfig"
@@ -38,6 +44,7 @@ locals {
       }
       ingress = [
         { subnet = "127.0.0.0/8" },
+        { subnet = var.pod_network_cidr },
         { subnet = var.tailscale_ipv4_cidr },
         { subnet = var.tailscale_ipv6_cidr },
       ]
