@@ -540,6 +540,18 @@ recovered state, so the new node is cryptographically the **same** cluster.
 - **At least annually** — Scenario 8 (full-loss recovery from the off-provider
   copy alone).
 
+**Drill prerequisites** — a full cloud drill is **operator-in-the-loop**: the CI
+automation deliberately cannot self-serve these (surfaced by drill #1). Gather
+them before starting:
+- The **age identity** that decrypts the snapshots — from custody, held **in
+  memory only** (ADR-0018 decisions 4 & 5).
+- **OpenStack / OVH Public Cloud credentials** (`OS_*`) to stand up the ephemeral
+  scratch VM.
+- The **machine secrets** (from OpenTofu state / the config bundle) if the drill
+  must reproduce cluster *identity* — a bare `bootstrap --recover-from` on a node
+  with *different* secrets restores the **data** but not the same cluster
+  identity.
+
 **Drill safety rules** (ADR-0018 decision 5):
 - Run in an **isolated scratch environment** (e.g. an ephemeral OVH Public Cloud
   VM), **never** the live cluster or the e2e project.
@@ -553,7 +565,8 @@ recovered state, so the new node is cryptographically the **same** cluster.
 
 | Date | Scenario | Environment | Result | Time to restore | Gaps found |
 |------|----------|-------------|--------|-----------------|------------|
-| _pending_ | 7 (etcd) | ephemeral OVH PCI VM | — | — | first drill not yet run (#318) |
+| 2026-07-11 | 7 (etcd) — mechanism | local `etcd` container (isolated scratch) | ✅ mechanism + data validated | ~3 min (restore sub-second) | full `bootstrap --recover-from` into a node still pending; needs operator age key + PCI creds — [report](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/318#issuecomment-4948945642) |
+| _pending_ | 7 (etcd) — full | ephemeral OVH PCI VM | — | — | bootstrap-into-node rehearsal; best after #319 (render-from-Git) |
 
 ---
 
