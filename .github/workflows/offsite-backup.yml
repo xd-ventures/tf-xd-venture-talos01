@@ -1,0 +1,174 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# Off-provider backup replication (ADR-0018 decision 2, #317).
+#
+# Daily replication of the recovery set to Backblaze B2 (non-OVH), bounding the
+# single-provider blast radius:
+#   - etcd snapshots: OVH -> B2 (already age-encrypted by talos-backup; read
+#     with the talos-backup writer identity that OWNS them — OVH per-object
+#     ownership means the state-backend user cannot read them).
+#   - config bundle: the OpenTofu state (holds machine secrets), tfvars, and a
+#     full git bundle of the repo, tar'd and AGE-ENCRYPTED client-side, then
+#     uploaded to B2.
+#
+# The B2 bucket has Object Lock (WORM, 7-day governance) + a 30-day lifecycle,
+# written by a delete-less scoped key: a compromised key can hide objects but
+# not destroy the locked versions. The age PRIVATE key stays in operator
+# custody (ADR-0018 decision 4); this job only encrypts with the public key.
+#
+# B2 Object-Lock upload gotcha: a single PutObject to a locked bucket needs a
+# Content-MD5/checksum header that rclone's S3 backend omits, but a MULTIPART
+# write does not (AWS quirk). So the B2 remote sets `upload_cutoff = 0` to force
+# multipart on every upload (rclone/rclone#6846). All identifiers (bucket names,
+# endpoints) are secrets, never in this file (public repo, #300).
+name: Offsite Backup
+
+on:
+  schedule:
+    - cron: "15 7 * * *" # after the 06:xx etcd/cluster crons
+  workflow_dispatch:
+
+concurrency:
+  group: offsite-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  offsite:
+    name: Replicate to B2
+    if: github.event_name == 'workflow_dispatch' || vars.GITOPS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    env:
+      OVH_ETCD_BUCKET: ${{ secrets.OFFSITE_OVH_ETCD_BUCKET }}
+      B2_BUCKET: ${{ secrets.OFFSITE_B2_BUCKET }}
+    steps:
+      - name: Checkout (full history for the git bundle)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install rclone and age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rclone age
+
+      - name: Configure rclone remotes
+        env:
+          OVH_ETCD_KEY_ID: ${{ secrets.OFFSITE_OVH_ETCD_KEY_ID }}
+          OVH_ETCD_SECRET: ${{ secrets.OFFSITE_OVH_ETCD_SECRET }}
+          OVH_S3_ENDPOINT: ${{ secrets.OFFSITE_OVH_S3_ENDPOINT }}
+          STATE_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          STATE_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          B2_KEY_ID: ${{ secrets.OFFSITE_B2_KEY_ID }}
+          B2_APP_KEY: ${{ secrets.OFFSITE_B2_APP_KEY }}
+          B2_ENDPOINT: ${{ secrets.OFFSITE_B2_ENDPOINT }}
+          BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$BACKEND_TFVARS" > /tmp/backend.tfvars
+          STATE_ENDPOINT=$(sed -nE 's/^\s*s3\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
+          STATE_BUCKET=$(sed -nE 's/^\s*bucket\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
+          STATE_REGION=$(sed -nE 's/^\s*region\s*=\s*"([^"]+)".*/\1/p' /tmp/backend.tfvars | head -1)
+          # State object key: single source of truth is infra/backend.tf; parse
+          # it here instead of duplicating the literal path.
+          STATE_KEY=$(sed -nE 's/^\s*key\s*=\s*"([^"]+)".*/\1/p' infra/backend.tf | head -1)
+          # Each remote's region is parsed from its OWN endpoint host, so the OVH
+          # etcd and state buckets need not share a region (SigV4 signs with the
+          # region). Fall back to the state region if the host is atypical.
+          OVH_ETCD_REGION=$(printf '%s' "$OVH_S3_ENDPOINT" | sed -nE 's#https://s3\.([^.]+)\.io\.cloud\.ovh\.net#\1#p')
+          OVH_ETCD_REGION=${OVH_ETCD_REGION:-$STATE_REGION}
+          B2_REGION=$(printf '%s' "$B2_ENDPOINT" | sed -nE 's#https://s3\.([^.]+)\.backblazeb2\.com#\1#p')
+          # Fail fast with a clear message if a required value failed to parse.
+          : "${STATE_ENDPOINT:?could not parse s3 endpoint from backend.tfvars}"
+          : "${STATE_BUCKET:?could not parse bucket from backend.tfvars}"
+          : "${STATE_KEY:?could not parse key from infra/backend.tf}"
+          # STATE_BUCKET is derived from a secret, so it is not auto-masked;
+          # mask it so a later rclone error path cannot leak it (public repo, #300).
+          echo "::add-mask::${STATE_BUCKET}"
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [ovh_etcd]
+          type = s3
+          provider = Other
+          access_key_id = ${OVH_ETCD_KEY_ID}
+          secret_access_key = ${OVH_ETCD_SECRET}
+          region = ${OVH_ETCD_REGION}
+          endpoint = ${OVH_S3_ENDPOINT}
+          force_path_style = true
+
+          [ovh_state]
+          type = s3
+          provider = Other
+          access_key_id = ${STATE_KEY_ID}
+          secret_access_key = ${STATE_SECRET}
+          region = ${STATE_REGION}
+          endpoint = ${STATE_ENDPOINT}
+          force_path_style = true
+
+          [b2]
+          type = s3
+          provider = Other
+          access_key_id = ${B2_KEY_ID}
+          secret_access_key = ${B2_APP_KEY}
+          region = ${B2_REGION}
+          endpoint = ${B2_ENDPOINT}
+          force_path_style = true
+          upload_cutoff = 0
+          EOF
+          echo "STATE_BUCKET=${STATE_BUCKET}" >> "$GITHUB_ENV"
+          echo "STATE_KEY=${STATE_KEY}" >> "$GITHUB_ENV"
+
+      - name: Replicate etcd snapshots (OVH -> B2, already encrypted)
+        run: |
+          set -euo pipefail
+          # Direct incremental cross-cloud copy; only new snapshots transfer.
+          rclone copy "ovh_etcd:${OVH_ETCD_BUCKET}" "b2:${B2_BUCKET}/etcd" \
+            --transfers 4 --s3-no-check-bucket --stats-one-line
+
+      - name: Build and upload the age-encrypted config bundle
+        env:
+          TERRAFORM_TFVARS: ${{ secrets.TERRAFORM_TFVARS }}
+          BACKEND_TFVARS: ${{ secrets.BACKEND_TFVARS }}
+          AGE_PUBKEY: ${{ secrets.OFFSITE_AGE_PUBKEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          WORK=$(mktemp -d)
+          # OpenTofu S3 state uses SSE-S3, so the GET returns plaintext state
+          # (machine secrets) — encrypt it client-side before it leaves.
+          rclone copyto "ovh_state:${STATE_BUCKET}/${STATE_KEY}" "$WORK/terraform.tfstate"
+          printf '%s\n' "$TERRAFORM_TFVARS" > "$WORK/terraform.tfvars"
+          printf '%s\n' "$BACKEND_TFVARS" > "$WORK/backend.tfvars"
+          git bundle create "$WORK/repo.bundle" --all
+          tar -czf "$WORK/config-bundle.tar.gz" -C "$WORK" \
+            terraform.tfstate terraform.tfvars backend.tfvars repo.bundle
+          age -r "$AGE_PUBKEY" -o "$WORK/config-bundle.tar.gz.age" "$WORK/config-bundle.tar.gz"
+          DAY=$(date -u +%F)
+          rclone copyto "$WORK/config-bundle.tar.gz.age" \
+            "b2:${B2_BUCKET}/config/${DAY}/config-bundle.tar.gz.age" --s3-no-check-bucket
+          rm -rf "$WORK"
+          # Export the day used so the verify step checks the exact path written,
+          # even if the job crosses UTC midnight between steps.
+          echo "DAY=${DAY}" >> "$GITHUB_ENV"
+
+      - name: Verify freshness in B2
+        run: |
+          set -euo pipefail
+          # Newest etcd snapshot in B2 must be < 26h old (daily job + 6h etcd
+          # cadence). rclone preserves source modtime, so this reflects the
+          # real snapshot age — also catching a dead upstream backup CronJob.
+          NEWEST=$(rclone lsjson "b2:${B2_BUCKET}/etcd" --files-only -R \
+            | python3 -c 'import json,sys; o=json.load(sys.stdin); print(max((x["ModTime"] for x in o), default=""))')
+          if [ -z "$NEWEST" ]; then echo "FAIL: no etcd snapshots in B2"; exit 1; fi
+          AGE_H=$(python3 -c "import datetime as d; t=d.datetime.fromisoformat('$NEWEST'.replace('Z','+00:00')); print(int((d.datetime.now(d.timezone.utc)-t).total_seconds()//3600))")
+          echo "newest etcd snapshot in B2 is ${AGE_H}h old"
+          [ "$AGE_H" -le 26 ] || { echo "FAIL: newest etcd snapshot is ${AGE_H}h old (> 26h)"; exit 1; }
+          # Today's config bundle must exist. DAY is exported by the upload step,
+          # so this checks the exact path written (no UTC-midnight race).
+          rclone lsf "b2:${B2_BUCKET}/config/${DAY}/" | grep -q config-bundle.tar.gz.age \
+            || { echo "FAIL: config bundle for ${DAY} missing"; exit 1; }
+          echo "offsite backup verified: etcd + config bundle present and fresh"
