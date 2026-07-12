@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# Storage classes for zfs-localpv (#320): StorageClass + VolumeSnapshotClass
+# from gitops/manifests/storage/. Split from the chart Application because the
+# chart deliberately ships no StorageClass, and these are cluster-scoped
+# resources with their own lifecycle.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storage-classes
+  namespace: argocd
+  annotations:
+    # After zfs-localpv (wave 0): the VolumeSnapshotClass needs the snapshot
+    # CRDs that ship with the chart — avoids a Degraded flap at bootstrap.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/xd-ventures/tf-xd-venture-talos01.git
+    path: gitops/manifests/storage
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        maxDuration: 3m
+        factor: 2

@@ -120,5 +120,10 @@
         "**Note**: applying this bump re-runs the cilium-install Job, which reconciles the running Cilium via `cilium upgrade` (#289) \u2014 Cilium pods may roll briefly on the single node."
       ]
     }
-  ]
+  ],
+  "argocd": {
+    "managerFilePatterns": [
+      "/^gitops/apps/.+\\.yaml$/"
+    ]
+  }
 }

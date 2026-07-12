@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# VolumeSnapshotClass for zfs-localpv (#320) — ZFS-native snapshots via CSI.
+# The snapshot CRDs + snapshot-controller ship with the zfs-localpv chart.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: openebs-zfspv
+driver: zfs.csi.openebs.io
+deletionPolicy: Delete
