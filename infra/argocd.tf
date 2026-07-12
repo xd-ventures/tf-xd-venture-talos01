@@ -19,11 +19,16 @@ locals {
   # Only parse when ArgoCD is enabled to avoid errors during initial bootstrap
   kubeconfig_parsed = local.argocd_enabled ? yamldecode(module.talos.kubeconfig_raw) : null
 
-  # Kubernetes API server URL
-  # When Tailscale is enabled, use the ts.net hostname for secure access
+  # Kubernetes API server URL.
+  # Dial by Tailscale IP, not the ts.net name (#370): MagicDNS is unavailable
+  # on GitHub runners AND inside the dflook action containers, and an
+  # unreachable cluster makes the helm provider report releases as DELETED
+  # during refresh — a CI apply then persists that phantom deletion out of
+  # state. The IP needs no DNS, routes via the runner's tailnet join, and is
+  # in the apiserver cert SANs (verified: Talos includes node addresses).
   k8s_host = local.argocd_enabled ? (
     module.talos.tailscale_enabled
-    ? "https://${module.talos.tailscale_fqdn}:6443"
+    ? "https://${module.talos.tailscale_device_ip}:6443"
     : local.kubeconfig_parsed.clusters[0].cluster.server
   ) : null
 
