@@ -163,16 +163,29 @@ spec:
                     echo "FAIL: latest snapshot is $${AGE_SECONDS}s old (> 8h): $LATEST"; exit 1
                   fi
                   umask 077
-                  aws s3api get-object --bucket "${bucket}" --key "$LATEST" /tmp/snap.zst.age >/dev/null
+                  aws s3api get-object --bucket "${bucket}" --key "$LATEST" /tmp/snap.age >/dev/null
                   printf '%s\n' "$AGE_SECRET_KEY" > /tmp/age.key
-                  age -d -i /tmp/age.key -o /tmp/snap.zst /tmp/snap.zst.age
+                  # age decryption is itself an AEAD integrity check: a
+                  # truncated or corrupted object fails here loudly (#368).
+                  age -d -i /tmp/age.key -o /tmp/snap /tmp/snap.age
                   rm -f /tmp/age.key
-                  zstd -t /tmp/snap.zst
-                  SIZE=$(stat -c%s /tmp/snap.zst)
+                  # Format-aware payload check (#368): talos-backup
+                  # v0.1.0-beta.3 writes RAW .snap despite ENABLE_COMPRESSION
+                  # (silent no-op) — detect the zstd magic instead of assuming
+                  # compression, so this survives an image bump that starts
+                  # compressing for real.
+                  MAGIC=$(od -An -tx1 -N4 /tmp/snap | tr -d ' \n')
+                  if [ "$MAGIC" = "28b52ffd" ]; then
+                    zstd -t /tmp/snap
+                    FORMAT="zstd (integrity-tested)"
+                  else
+                    FORMAT="raw etcd snapshot"
+                  fi
+                  SIZE=$(stat -c%s /tmp/snap)
                   if [ "$SIZE" -lt 1048576 ]; then
                     echo "FAIL: decrypted snapshot suspiciously small ($SIZE bytes)"; exit 1
                   fi
-                  echo "verify OK: $LATEST ($SIZE bytes decompressed-tested, $${AGE_SECONDS}s old)"
+                  echo "verify OK: $LATEST ($SIZE bytes, $FORMAT, $${AGE_SECONDS}s old)"
               resources:
                 requests:
                   cpu: 50m
