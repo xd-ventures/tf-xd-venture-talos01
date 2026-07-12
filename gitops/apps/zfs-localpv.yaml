@@ -20,6 +20,10 @@ kind: Application
 metadata:
   name: zfs-localpv
   namespace: argocd
+  annotations:
+    # Root-app syncs this before storage-classes (wave 1): the chart installs
+    # the VolumeSnapshot CRDs the VolumeSnapshotClass needs.
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -27,7 +31,7 @@ spec:
   source:
     repoURL: https://openebs.github.io/zfs-localpv
     chart: zfs-localpv
-    # renovate: datasource=helm depName=zfs-localpv registryUrl=https://openebs.github.io/zfs-localpv
+    # Renovate-managed by the built-in argocd manager (see renovate.json).
     targetRevision: 2.10.1
     helm:
       releaseName: zfs-localpv

@@ -245,6 +245,8 @@ locals {
   # restriction). Live-appliable machine config — deliberately NOT in the
   # reinstall trigger (adding this patch must never cascade a reinstall,
   # cf. #268/#205).
+  # NOTE(#322): the org-specific label key must become a variable when this
+  # module is extracted into the public terraform-talos-cluster repo.
   zfs_node_label_config_patch = var.zfs_pool_enabled ? yamlencode({
     machine = {
       nodeLabels = {

@@ -17,6 +17,11 @@ metadata:
     storageclass.kubernetes.io/is-default-class: "true"
 provisioner: zfs.csi.openebs.io
 parameters:
+  # "tank" MUST equal var.zfs_pool_name in the consumer tfvars — it is both
+  # the pool zfs-localpv provisions into and the value of the
+  # xd-ventures.dev/zfs-pool node label (allowedTopologies below). These
+  # manifests are not templated: a pool rename must update all three in
+  # lockstep or provisioning silently breaks.
   poolname: "tank"
   fstype: "zfs"
 allowVolumeExpansion: true

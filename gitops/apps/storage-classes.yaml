@@ -10,6 +10,10 @@ kind: Application
 metadata:
   name: storage-classes
   namespace: argocd
+  annotations:
+    # After zfs-localpv (wave 0): the VolumeSnapshotClass needs the snapshot
+    # CRDs that ship with the chart — avoids a Degraded flap at bootstrap.
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
