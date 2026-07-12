@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# App-of-apps root (#319). ArgoCD manages every child Application declared under
+# gitops/apps/ from Git — the "everything above etcd rebuilds from Git" premise
+# of ADR-0018.
+#
+# BOOTSTRAP (one-time, after this skeleton is on `main`):
+#   kubectl apply -f gitops/bootstrap/root-app.yaml
+# ArgoCD then reconciles gitops/apps/ continuously. Adding a child app is a PR
+# that drops a manifest into gitops/apps/ — no direct cluster access needed.
+#
+# NOTE: targetRevision is `main`, so children only appear once merged. ArgoCD
+# reads this PUBLIC repo anonymously (no credentials configured).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/xd-ventures/tf-xd-venture-talos01.git
+    path: gitops/apps
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

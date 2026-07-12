@@ -331,7 +331,242 @@ End-to-end procedure to recover from a completely non-functional state.
      nsenter -t 1 -m -- /usr/local/sbin/zpool status
    ```
 
-9. **Restore data** from backups to the new ZFS pool.
+9. **Restore cluster state and data.** Recover etcd (Scenario 7) so the
+   rebuilt node comes back as the same cluster rather than an empty one. See
+   [What Is and Isn't Backed Up](#what-is-and-isnt-backed-up) for the ZFS/PV
+   data caveat — pool contents are **not** currently recoverable from backup.
+
+---
+
+## What Is and Isn't Backed Up
+
+Restore is only as good as the backup. Know the boundary before you need it.
+
+| Asset | Backed up? | Where | Restore path |
+|-------|-----------|-------|--------------|
+| **etcd** (cluster state: workloads, secrets, RBAC, CRDs) | ✅ every 6 h | Primary: OVH bucket, `<cluster_name>/` prefix (zstd + age). Offsite: B2 `etcd/` (daily copy) | Scenario 7 |
+| **Talos machine secrets** (PKI, etcd/k8s CA) | ✅ (inside OpenTofu state) | OpenTofu state → offsite config bundle `config/<date>/config-bundle.tar.gz.age` | Scenario 8 |
+| **OpenTofu state, `terraform.tfvars`, `backend.tfvars`** | ✅ daily | Offsite config bundle | Scenario 8 |
+| **Repo / machine config source** | ✅ daily (git bundle) | Offsite config bundle (`repo.bundle`) | Scenario 8 |
+| **Workloads / add-ons** | ⤴️ rebuilt from Git (not backed up as data) | Git (ArgoCD app-of-apps once #319 lands) | GitOps re-sync |
+| **PV / ZFS dataset *contents*** | ❌ **NOT YET** | — | **Gap — see below** |
+
+> **⚠️ Known gap — persistent-volume data is not backed up.** The ZFS mirror
+> pool (`tank`) is *recreated* on recovery (empty) by the `zfs-pool-setup` Job,
+> but nothing today snapshots or ships its **contents**. The backup *approach*
+> (ZFS `zfs send` streams vs a PV/application-level tool such as Velero, vs a
+> storage-native backup target) is an **open decision**, deliberately coupled to
+> the distributed-storage architecture — tracked in **#361**. Until it ships,
+> treat any data that only lives on a PV as **non-durable**: anything you cannot
+> afford to lose must be reconstructable from Git or an external source. The
+> etcd + config-bundle backups fully cover *cluster state and identity*; they do
+> not cover *application data at rest*.
+
+The keys that decrypt the backups live in operator custody (password manager +
+offline media, ADR-0018 decision 4), **never** in state, CI, or this repo:
+- `AGE_SECRET_KEY` — decrypts the **etcd** snapshots (pairs with
+  `talos_backup_age_public_key`).
+- The **offsite** config-bundle age identity — decrypts the config bundle
+  (pairs with the `OFFSITE_AGE_PUBKEY` secret).
+
+These may be two different age identities. A restore drill that cannot find
+both keys has found a real gap — that is the point of drilling.
+
+---
+
+## Scenario 7: etcd Snapshot Restore (Recover the Control Plane)
+
+Use this when etcd is corrupted or lost but you want the cluster back as
+**itself** — same secrets, same workloads — rather than a fresh install. This
+is the single most important recovery path; it is the first drilled procedure
+(ADR-0018 decision 5a).
+
+> Snapshots are taken through the Talos API (`talos-backup` → `EtcdSnapshot`),
+> so they **carry the etcd integrity hash** — restore does **not** need
+> `--recover-skip-hash-check`. That flag is only for snapshots copied raw out of
+> `/var/lib/etcd` with `talosctl cp`.
+
+### Step 1: Fetch keys and the node endpoint
+
+```bash
+# age identity for etcd snapshots — from custody, kept in the shell only.
+export AGE_SECRET_KEY='AGE-SECRET-KEY-1...'
+
+# Node API endpoint + talosconfig (identifiers are not committed — read them
+# from outputs, never hardcode them in a public doc). talosctl reaches the node
+# over Tailscale, so use its Tailscale IP.
+export TALOSCONFIG=$PWD/talosconfig
+tofu -chdir=infra output -raw talosconfig > "$TALOSCONFIG"
+NODE_IP=$(tofu -chdir=infra output -raw tailscale_device_ip)
+```
+
+### Step 2: Download the latest snapshot
+
+Primary (OVH) — read with the **talos-backup writer** credential that owns the
+objects (OVH per-object ownership blocks other users):
+
+```bash
+# talos-backup writer creds — the identity that OWNS the snapshot objects. They
+# are embedded in this sensitive output (which also builds the in-cluster secret):
+#   tofu -chdir=infra output -raw talos_backup_secret_command
+export AWS_ACCESS_KEY_ID='<from talos_backup_secret_command>'
+export AWS_SECRET_ACCESS_KEY='<from talos_backup_secret_command>'
+
+REGION=$(tofu -chdir=infra output -json talos_backup_info | jq -r .region)   # e.g. gra
+OVH_S3="https://s3.${REGION}.io.cloud.ovh.net"
+BUCKET='<talos_backup_s3_bucket, from terraform.tfvars>'        # not an output (identifier, #300)
+
+# Newest object under the cluster prefix (<cluster_name>/, from terraform.tfvars):
+LATEST=$(aws --endpoint-url "$OVH_S3" s3api list-objects-v2 --bucket "$BUCKET" \
+  --prefix '<cluster_name>/' \
+  --query 'sort_by(Contents,&LastModified)[-1].Key' --output text)
+aws --endpoint-url "$OVH_S3" s3 cp "s3://$BUCKET/$LATEST" snapshot.zst.age
+```
+
+If OVH itself is gone, pull from the offsite B2 copy instead (`etcd/` prefix,
+using the B2 read credentials from custody) — this is the Scenario 8 entry point.
+
+### Step 3: Decrypt and decompress to a raw etcd snapshot
+
+```bash
+# age identity stays in memory (process substitution), never on disk.
+age -d -i <(printf '%s\n' "$AGE_SECRET_KEY") -o snapshot.zst snapshot.zst.age
+zstd -d snapshot.zst -o db.snapshot
+# db.snapshot is now the raw etcd snapshot (carries its integrity hash).
+```
+
+### Step 4: Wipe etcd on the node (only if recovering in place)
+
+Skip this if the node was just freshly reinstalled (etcd is already empty).
+Otherwise wipe the ephemeral data so etcd starts clean:
+
+```bash
+talosctl -n "$NODE_IP" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
+```
+
+> This wipes the **EPHEMERAL** partition (etcd + container state). The ZFS
+> `tank` pool lives on separate disks and **survives** this reset; the persisted
+> machine config on the STATE partition also survives. Wait until etcd reports
+> `STATE: Preparing` before continuing:
+
+```bash
+talosctl -n "$NODE_IP" service etcd     # STATE must read: Preparing
+```
+
+### Step 5: Bootstrap from the snapshot
+
+```bash
+talosctl -n "$NODE_IP" bootstrap --recover-from=./db.snapshot
+```
+
+### Step 6: Verify
+
+```bash
+talosctl -n "$NODE_IP" health
+tofu -chdir=infra output -raw kubeconfig > kubeconfig && chmod 600 kubeconfig
+export KUBECONFIG=$PWD/kubeconfig
+kubectl get nodes
+kubectl get pods -A          # workloads should be present from the restored state
+```
+
+### Multi-node note (future topology)
+
+Today the cluster is a single control-plane node, so the above *is* the whole
+procedure. Under the future 3-node topology (ADR-0017), recover by resetting the
+other control-plane members, running `bootstrap --recover-from` on **one** node,
+and letting the others rejoin automatically once the control-plane endpoint is
+back (ADR-0018 decision 5b).
+
+---
+
+## Scenario 8: Full-Loss Recovery from the Off-Provider Copy (OVH Gone)
+
+The "OVH account/region is gone, all we have is B2 + the custody keys" path —
+RTO target ≤ 1 working day (ADR-0018 decision 9). Everything needed is in the
+B2 bucket and the two age identities.
+
+### Step 1: Retrieve from custody
+
+- B2 **read** credentials (key id + application key).
+- The **offsite** config-bundle age identity.
+- The **etcd** `AGE_SECRET_KEY`.
+
+### Step 2: Recover the config bundle (state, tfvars, repo)
+
+```bash
+# Configure an rclone 'b2' remote (see .github/workflows/offsite-backup.yml for
+# the exact shape; upload_cutoff=0 only matters for writes, not reads).
+LATEST_DAY=$(rclone lsf b2:<bucket>/config/ | sort | tail -1)   # newest date dir
+rclone copyto "b2:<bucket>/config/${LATEST_DAY}config-bundle.tar.gz.age" bundle.age
+age -d -i <(printf '%s\n' "$OFFSITE_AGE_IDENTITY") -o bundle.tar.gz bundle.age
+mkdir recover && tar -xzf bundle.tar.gz -C recover
+# recover/ now holds: terraform.tfstate  terraform.tfvars  backend.tfvars  repo.bundle
+```
+
+### Step 3: Rebuild the repo and infrastructure
+
+```bash
+git clone recover/repo.bundle src && cd src
+cp ../recover/terraform.tfvars ../recover/backend.tfvars infra/
+# Point OpenTofu at the recovered state (new backend bucket, or local):
+tofu -chdir=infra init -backend=false
+cp ../recover/terraform.tfstate infra/terraform.tfstate
+# Provision a replacement server (OVH again, or the VM module for another provider):
+tofu -chdir=infra plan      # review carefully before applying to new infra
+tofu -chdir=infra apply
+```
+
+The machine config (including the Talos PKI / etcd CA) is reconstructed from the
+recovered state, so the new node is cryptographically the **same** cluster.
+
+### Step 4: Restore etcd, re-establish GitOps
+
+1. Restore etcd onto the new node via **Scenario 7**, using the newest snapshot
+   from B2 `etcd/` (decrypt with the etcd `AGE_SECRET_KEY`).
+2. Re-establish GitOps (ArgoCD app-of-apps, once #319 lands) so workloads
+   re-render from Git.
+3. **PV/ZFS data does not come back** — the pool is recreated empty (see the
+   [known gap](#what-is-and-isnt-backed-up)).
+
+---
+
+## Restore Drills
+
+> *A backup that has not restored is a hypothesis.* Drilling is what turns it
+> into a recovery capability (ADR-0018 decision 5).
+
+**Cadence**
+- **Quarterly** — Scenario 7 (etcd restore) into an isolated scratch cluster.
+- **At least annually** — Scenario 8 (full-loss recovery from the off-provider
+  copy alone).
+
+**Drill prerequisites** — a full cloud drill is **operator-in-the-loop**: the CI
+automation deliberately cannot self-serve these (surfaced by drill #1). Gather
+them before starting:
+- The **age identity** that decrypts the snapshots — from custody, held **in
+  memory only** (ADR-0018 decisions 4 & 5).
+- **OpenStack / OVH Public Cloud credentials** (`OS_*`) to stand up the ephemeral
+  scratch VM.
+- The **machine secrets** (from OpenTofu state / the config bundle) if the drill
+  must reproduce cluster *identity* — a bare `bootstrap --recover-from` on a node
+  with *different* secrets restores the **data** but not the same cluster
+  identity.
+
+**Drill safety rules** (ADR-0018 decision 5):
+- Run in an **isolated scratch environment** (e.g. an ephemeral OVH Public Cloud
+  VM), **never** the live cluster or the e2e project.
+- Keep the age identity **in memory only** for the duration of the drill.
+- **Crypto-shred** the scratch environment on teardown (destroy the VM; do not
+  leave decrypted snapshots or keys on disk).
+- Record timing and any gaps found — a drill that finds nothing usually means it
+  wasn't exercised hard enough.
+
+**Drill log**
+
+| Date | Scenario | Environment | Result | Time to restore | Gaps found |
+|------|----------|-------------|--------|-----------------|------------|
+| 2026-07-11 | 7 (etcd) — mechanism | local `etcd` container (isolated scratch) | ✅ mechanism + data validated | ~3 min (restore sub-second) | full `bootstrap --recover-from` into a node still pending; needs operator age key + PCI creds — [report](https://github.com/xd-ventures/tf-xd-venture-talos01/issues/318#issuecomment-4948945642) |
+| _pending_ | 7 (etcd) — full | ephemeral OVH PCI VM | — | — | bootstrap-into-node rehearsal; best after #319 (render-from-Git) |
 
 ---
 
@@ -361,6 +596,7 @@ OVH provides IPMI-based access for out-of-band management:
 
 ## Related Documents
 
+- [ADR-0018: Backup, Restore & Disaster Recovery](adr/0018-backup-restore-and-disaster-recovery.md) — the decisions behind Scenarios 7–8 and the drill cadence
 - [Operations Runbook](OPERATIONS_RUNBOOK.md) — routine operational procedures
 - [Testing Strategy](TESTING_STRATEGY.md) — validation phases and debugging
 - [Architecture Overview](ARCHITECTURE.md) — failure modes table
