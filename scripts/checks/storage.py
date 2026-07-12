@@ -3,14 +3,15 @@
 
 """Storage & backup verification.
 
-Validates ZFS pool health, persistent volume functionality, and etcd
+Validates ZFS pool health, the zfs-localpv PVC path (#320), and etcd
 backup recency (talos-backup CronJobs, #316 / ADR-0018).
 
 Test plan:
   1. ZFS pool is ONLINE
-  2. PersistentVolume can be created and written to on ZFS mount
-  3. etcd snapshot CronJob succeeded recently (< 8h)
-  4. backup decrypt-and-verify CronJob succeeded recently (< 26h)
+  2. PVC create + write via the zfs-localpv StorageClass (dynamic provisioning)
+  3. VolumeSnapshot of that PVC reaches readyToUse (ZFS-native snapshot)
+  4. etcd snapshot CronJob succeeded recently (< 8h)
+  5. backup decrypt-and-verify CronJob succeeded recently (< 26h)
 """
 
 import datetime
@@ -25,17 +26,21 @@ def run(ctx: CheckContext, tap: TAPProducer) -> None:
     """Run storage test suite."""
     if not ctx.zfs_pool_enabled:
         tap.skip("ZFS pool is ONLINE", reason="zfs_pool_enabled=false")
-        tap.skip("PV write test on ZFS mount", reason="zfs_pool_enabled=false")
+        tap.skip("PVC write test (zfs-localpv)", reason="zfs_pool_enabled=false")
+        tap.skip("PVC snapshot round-trip (zfs-localpv)", reason="zfs_pool_enabled=false")
     else:
         # 1. ZFS pool state via /proc
         #    Talos has no shell, but /proc/spl/kstat/zfs exposes pool state.
         pool_online = _check_pool_state(ctx, tap)
 
-        # 2. PV write test
+        # 2+3. PVC write + snapshot round-trip through the zfs-localpv
+        #      StorageClass (#320) — exercises the CSI provisioner end to end,
+        #      not just the pool.
         if pool_online:
-            _check_pv_write(ctx, tap)
+            _check_pvc_roundtrip(ctx, tap)
         else:
-            tap.skip("PV write test on ZFS mount", reason="pool not ONLINE")
+            tap.skip("PVC write test (zfs-localpv)", reason="pool not ONLINE")
+            tap.skip("PVC snapshot round-trip (zfs-localpv)", reason="pool not ONLINE")
 
     # 3+4. etcd backup recency (ADR-0018: a silently dead backup CronJob or
     # an unrestorable snapshot must surface within a day, not at a drill)
@@ -126,14 +131,21 @@ def _check_pool_state(ctx: CheckContext, tap: TAPProducer) -> bool:
     return False
 
 
-def _check_pv_write(ctx: CheckContext, tap: TAPProducer) -> None:
-    """Create a hostPath PV on the ZFS mount, write a file, verify, clean up."""
+def _check_pvc_roundtrip(ctx: CheckContext, tap: TAPProducer) -> None:
+    """PVC create/write + VolumeSnapshot round-trip via zfs-localpv (#320).
+
+    Exercises dynamic provisioning through the openebs-zfspv StorageClass
+    (WaitForFirstConsumer: the PVC binds when the writer pod schedules) and a
+    ZFS-native CSI snapshot. Replaces the old hostPath PV test, which bypassed
+    the provisioner entirely.
+    """
     ts = int(time.time())
-    pv_name = f"check-zfs-pv-{ts}"
-    pvc_name = f"check-zfs-pvc-{ts}"
-    pod_name = f"check-zfs-write-{ts}"
+    pvc_name = f"check-zfspv-{ts}"
+    pod_name = f"check-zfspv-write-{ts}"
+    snap_name = f"check-zfspv-snap-{ts}"
     ns = "default"
-    mount_point = "/var/mnt/data"
+    write_desc = "PVC write test (zfs-localpv)"
+    snap_desc = "PVC snapshot round-trip (zfs-localpv)"
 
     resources = json.dumps({
         "apiVersion": "v1",
@@ -141,25 +153,12 @@ def _check_pv_write(ctx: CheckContext, tap: TAPProducer) -> None:
         "items": [
             {
                 "apiVersion": "v1",
-                "kind": "PersistentVolume",
-                "metadata": {"name": pv_name, "labels": {"app": "cluster-check"}},
-                "spec": {
-                    "capacity": {"storage": "1Mi"},
-                    "accessModes": ["ReadWriteOnce"],
-                    "persistentVolumeReclaimPolicy": "Delete",
-                    "storageClassName": "",
-                    "hostPath": {"path": f"{mount_point}/check-{ts}"},
-                },
-            },
-            {
-                "apiVersion": "v1",
                 "kind": "PersistentVolumeClaim",
                 "metadata": {"name": pvc_name, "namespace": ns, "labels": {"app": "cluster-check"}},
                 "spec": {
                     "accessModes": ["ReadWriteOnce"],
-                    "resources": {"requests": {"storage": "1Mi"}},
-                    "storageClassName": "",
-                    "volumeName": pv_name,
+                    "resources": {"requests": {"storage": "16Mi"}},
+                    "storageClassName": "openebs-zfspv",
                 },
             },
             {
@@ -185,14 +184,26 @@ def _check_pv_write(ctx: CheckContext, tap: TAPProducer) -> None:
         ],
     })
 
+    snapshot = json.dumps({
+        "apiVersion": "snapshot.storage.k8s.io/v1",
+        "kind": "VolumeSnapshot",
+        "metadata": {"name": snap_name, "namespace": ns, "labels": {"app": "cluster-check"}},
+        "spec": {
+            "volumeSnapshotClassName": "openebs-zfspv",
+            "source": {"persistentVolumeClaimName": pvc_name},
+        },
+    })
+
     try:
         result = run_kubectl(ctx, "apply", "-f", "-", stdin=resources, timeout=15)
         if result.returncode != 0:
-            tap.not_ok("PV write test on ZFS mount", error=f"create failed: {result.stderr.strip()}")
+            tap.not_ok(write_desc, error=f"create failed: {result.stderr.strip()}")
+            tap.skip(snap_desc, reason="PVC/pod create failed")
             return
 
-        # Wait for pod to complete
+        # Wait for the writer pod (provisioning happens on schedule: WFFC)
         deadline = time.time() + 120
+        wrote = False
         while time.time() < deadline:
             result = run_kubectl(
                 ctx, "get", "pod", pod_name, "-n", ns,
@@ -200,21 +211,57 @@ def _check_pv_write(ctx: CheckContext, tap: TAPProducer) -> None:
             )
             phase = result.stdout.strip()
             if phase == "Succeeded":
-                # Check logs for the expected output
                 logs = run_kubectl(ctx, "logs", pod_name, "-n", ns)
                 if "ok" in logs.stdout:
-                    tap.ok("PV write test on ZFS mount")
+                    tap.ok(write_desc)
+                    wrote = True
                 else:
-                    tap.not_ok("PV write test on ZFS mount", error="write succeeded but read failed")
-                return
+                    tap.not_ok(write_desc, error="write succeeded but read failed")
+                break
             if phase == "Failed":
                 logs = run_kubectl(ctx, "logs", pod_name, "-n", ns)
-                tap.not_ok("PV write test on ZFS mount", phase="Failed", logs=logs.stdout.strip())
+                tap.not_ok(write_desc, phase="Failed", logs=logs.stdout.strip())
+                break
+            time.sleep(5)
+        else:
+            # PVC stuck Pending usually means the provisioner/topology is broken.
+            pvc = run_kubectl(
+                ctx, "get", "pvc", pvc_name, "-n", ns,
+                "-o", "jsonpath={.status.phase}",
+            )
+            tap.not_ok(
+                write_desc,
+                error="pod did not complete within 120s",
+                pvc_phase=pvc.stdout.strip() or "unknown",
+            )
+
+        if not wrote:
+            tap.skip(snap_desc, reason="write test failed")
+            return
+
+        # Snapshot the written volume; readyToUse proves the CSI snapshot path
+        # (snapshot-controller + csi-snapshotter + zfs snapshot) end to end.
+        result = run_kubectl(ctx, "apply", "-f", "-", stdin=snapshot, timeout=15)
+        if result.returncode != 0:
+            tap.not_ok(snap_desc, error=f"snapshot create failed: {result.stderr.strip()}")
+            return
+
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            result = run_kubectl(
+                ctx, "get", "volumesnapshot", snap_name, "-n", ns,
+                "-o", "jsonpath={.status.readyToUse}",
+            )
+            if result.stdout.strip() == "true":
+                tap.ok(snap_desc)
                 return
             time.sleep(5)
 
-        tap.not_ok("PV write test on ZFS mount", error="pod did not complete within 120s")
+        tap.not_ok(snap_desc, error="snapshot not readyToUse within 90s")
     finally:
+        run_kubectl(
+            ctx, "delete", "volumesnapshot", snap_name, "-n", ns,
+            "--ignore-not-found", timeout=30,
+        )
         run_kubectl(ctx, "delete", "pod", pod_name, "-n", ns, "--ignore-not-found", timeout=15)
-        run_kubectl(ctx, "delete", "pvc", pvc_name, "-n", ns, "--ignore-not-found", timeout=15)
-        run_kubectl(ctx, "delete", "pv", pv_name, "--ignore-not-found", timeout=15)
+        run_kubectl(ctx, "delete", "pvc", pvc_name, "-n", ns, "--ignore-not-found", timeout=30)

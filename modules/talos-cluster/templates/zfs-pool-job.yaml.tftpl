@@ -45,8 +45,12 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: Exists
+                  # Explicit storage-node label (machine.nodeLabels, #320) —
+                  # not the control-plane role — prep for the CP/worker split.
+                  - key: xd-ventures.dev/zfs-pool
+                    operator: In
+                    values:
+                      - ${pool_name}
       serviceAccountName: zfs-pool-setup
       hostNetwork: true
       hostPID: true

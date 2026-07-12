@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Maciej Sawicki
+
+# OpenEBS ZFS-LocalPV (#320, ADR-0018 decision 7): CSI provisioner over the
+# ALREADY-EXISTING ZFS mirror pool — dynamic PVC provisioning, snapshots,
+# clones, quotas; zero new replication layer. Longhorn is explicitly deferred
+# (ADR-0018 decision 8 trigger: >= 2 workers on a low-RTT storage fabric).
+#
+# Chart notes (verified against zfs-localpv 2.10.1):
+#   - bundles the VolumeSnapshot CRDs (crds.csi.volumeSnapshots.enabled=true)
+#     AND the sig-storage snapshot-controller — no separate install needed.
+#   - default kubeletDir /var/lib/kubelet matches Talos.
+#   - allowedTopologyKeys defaults to "All": every node label is registered as
+#     CSI topology, so the StorageClass can key on xd-ventures.dev/zfs-pool
+#     (set via machine.nodeLabels) without leaking node identifiers here.
+#   - the openebs namespace needs PSA privileged (node plugin is privileged:
+#     /dev/zfs + mounts); Talos defaults to baseline enforcement.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zfs-localpv
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://openebs.github.io/zfs-localpv
+    chart: zfs-localpv
+    # renovate: datasource=helm depName=zfs-localpv registryUrl=https://openebs.github.io/zfs-localpv
+    targetRevision: 2.10.1
+    helm:
+      releaseName: zfs-localpv
+      valuesObject:
+        zfsNode:
+          # Default /home/keys is unwritable on Talos (read-only rootfs);
+          # /var is the writable tree.
+          encrKeysDir: /var/openebs/keys
+        zfs:
+          # The node plugin execs zfs via `chroot /host` — on Talos the
+          # extension installs the userland at /usr/local/sbin (matches the
+          # running kernel module exactly).
+          bin: /usr/local/sbin/zfs
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openebs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Snapshot CRDs exceed the client-side-apply annotation limit.
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        # Node plugin runs privileged (Talos PSA default is baseline).
+        pod-security.kubernetes.io/enforce: privileged
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        maxDuration: 3m
+        factor: 2
