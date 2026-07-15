@@ -174,11 +174,13 @@ jobs:
           done
 
       # --- Terraform provider inventory ---
+      # Root .tf moved to infra/ in #357 and the orphaned root lockfile was
+      # removed in #360 — the canonical lockfile lives in infra/ (#379).
       - name: Generate provider inventory
         run: |
           python3 -c "
           import re, json
-          with open('.terraform.lock.hcl') as f:
+          with open('infra/.terraform.lock.hcl') as f:
               content = f.read()
           providers = []
           for match in re.finditer(r'provider \"(.+?)\" \{\s*\n\s*version\s*=\s*\"(.+?)\"', content):
