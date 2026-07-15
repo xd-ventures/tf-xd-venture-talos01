@@ -179,7 +179,7 @@ variable "zfs_pool_job_image" {
   description = "Utility image (repo:tag@digest) for the ZFS pool setup Job."
   type        = string
   # renovate: datasource=docker depName=alpine
-  default = "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d"
+  default = "alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
 
   validation {
     condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.zfs_pool_job_image))
@@ -461,7 +461,7 @@ variable "talos_backup_verify_image" {
   description = "Utility image (repo:tag@digest) for the daily decrypt-and-verify CronJob (needs apk: aws-cli, age, zstd)."
   type        = string
   # renovate: datasource=docker depName=alpine
-  default = "alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d"
+  default = "alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
 
   validation {
     condition     = can(regex("^[\\w./-]+:[\\w.-]+@sha256:[a-f0-9]{64}$", var.talos_backup_verify_image))
