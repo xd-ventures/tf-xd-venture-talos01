@@ -167,7 +167,7 @@ variable "cilium_version" {
   description = "Cilium chart version installed (fresh bootstrap) or reconciled to (cilium upgrade on re-runs) by the install Job. Pinned so upgrades are deterministic instead of following the CLI's embedded default."
   type        = string
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io/
-  default = "1.17.0"
+  default = "1.19.6"
 
   validation {
     condition     = can(regex("^\\d+\\.\\d+\\.\\d+$", var.cilium_version))
