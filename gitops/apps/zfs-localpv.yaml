@@ -32,7 +32,7 @@ spec:
     repoURL: https://openebs.github.io/zfs-localpv
     chart: zfs-localpv
     # Renovate-managed by the built-in argocd manager (see renovate.json).
-    targetRevision: 2.10.1
+    targetRevision: 2.11.0
     helm:
       releaseName: zfs-localpv
       valuesObject:
