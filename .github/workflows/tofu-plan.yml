@@ -72,7 +72,7 @@ jobs:
           chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu plan
-        uses: dflook/tofu-plan@3f5dc358343fb58cd60f83b019e810315aa8258f # v2.2.3
+        uses: dflook/tofu-plan@c7416238983bdd94c5486fb856bb7358f2bcc935 # v3.1.0
         with:
           label: talos01
           path: infra
