@@ -9,4 +9,4 @@ ovh==1.2.0
 PyYAML==6.0.3
 requests-oauthlib==2.0.0
 requests==2.34.2
-urllib3==2.7.0
+urllib3==2.8.0
