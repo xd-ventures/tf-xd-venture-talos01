@@ -109,7 +109,8 @@
       "matchDatasources": [
         "docker"
       ],
-      "minimumReleaseAge": "3 days"
+      "minimumReleaseAge": "3 days",
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "Cilium bumps reconcile the live installation on apply",
