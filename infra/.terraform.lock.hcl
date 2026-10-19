@@ -2,27 +2,27 @@
 # Manual edits may be lost in future updates.
 
 provider "registry.opentofu.org/argoproj-labs/argocd" {
-  version     = "7.17.1"
+  version     = "7.17.2"
   constraints = "~> 7.0"
   hashes = [
-    "h1:8h26jRn+BMuezLg+M5X20hi2WscziiguYNzh6h1WptA=",
-    "h1:HqfLX5RMP+XE80HkkqVb+2Foel6334KxAWLIP3ZQEYo=",
-    "h1:JIZ+S6+UsiZiI8/xldP0tFdwNhkXA8Vp3Bq9UFJEVEQ=",
-    "h1:MsgMGtKGrRs0sZMF+Qe9X3vztx21FfWdjl+C7Nhb7/0=",
-    "h1:Soln5YRUHI5f101h69xw6RwNR7Jqv//C6OBinid9S6k=",
-    "h1:WrzbcZKdXe+v+oudc+Uce6h4Yl6wG2MwvZZ0fXkbFV0=",
-    "h1:cnTtcxeBBY/zRVXW6Hd7ytmJehjnqTO5mHgTp57S4o0=",
-    "h1:nw17521HrZBjOi394LrxsoBysie102mL37MhIcDN9+4=",
-    "h1:po00pc7ZjvjepfYQIW55nf/jBVB2AtkXTRA/ZFjrnzM=",
-    "zh:05cf0d731e96a762a97b17532ce9912444bb00394372a4bfbc23364eef836644",
-    "zh:14abe79fea55fe7651b0dd85f77cdd7aa05c1f4d926a7a0c4632e8f720777d6d",
-    "zh:3226128c392cacd98894d3a400a48868262c714bf8fa181d6e69501e0966da3a",
-    "zh:3547238fa6a6dd1a63a001187cad8be7958205283a57856da62c449147b112bc",
-    "zh:7c83be9c3e26aceae5d976d60073e6a1dcb06cc01a42c8ef24340fbbe1632b96",
-    "zh:96ff7d2543fefc948b7490216077048dbbb5b9f0dd80a1b40aa4c64e3339c230",
-    "zh:a588caa2a431ca0fbf0b9ab0c106170abec2cd285097866b9f8049524090a60d",
-    "zh:ac4828a8646b149e8f198f80ec3dbc49ab02d79f31f79277fb5e27d7d12c80d5",
-    "zh:b8f64827f9c3b002161a4d59996e09264ffada7c6afe93ca42aa5f3ca44279fc",
+    "h1:+EGXVqYMpLZ8E/2F7sJpgeBl8bb/+i8hCcjbAcxgTLg=",
+    "h1:+ZhL2YbZKIxfifJP+J64LUjgsqcVEYSnMABDakZThow=",
+    "h1:Ri6jif0a81sV4RpCbWYQZEZD2ru121fsxkj0ZvdCoHA=",
+    "h1:bH8voKN8xT8xcGdPn5xCXqWbNnzE2t6SygHX6VvGrEU=",
+    "h1:eohYi9jdnk+Lr5Cuc1uWC3t4PicLR5NlepyP68wNXbw=",
+    "h1:hmeSqOtWhytij4VymACmvEJqonjzMVX3oy01kNjgS3E=",
+    "h1:tIlzOnvf8hP02GmlGE/tprbO97BHRwDuITZxj1N/gLg=",
+    "h1:tnyBkxEZZ+nHMLqGliVL/BH8TWbs9sILAJSqph5TMUM=",
+    "h1:vsffv4627suigsRt089WBM0kK04YzVQTKaCa9CrqviE=",
+    "zh:1939afb83ac5d8636feae2121b2eeedc97f1cedad3701ab4f2c4db813bdeefd4",
+    "zh:2f56cb0731c391ad329e24f2fbcee71b2761fbf6397b901cdc7d4cda5338f16c",
+    "zh:38b9fdd2e7cf9913e84aa65e3db0682166cf2b0df68722dd163af0fb5953f710",
+    "zh:464ce5092904f6f19101e803463d8ca7be493e67d6a9d5821ea17b44bb59f690",
+    "zh:71eba2bfc7feb78674ab7f4c8fe0bb1424c5723a198117b1c6e8e2526d5c660b",
+    "zh:855f74dc7fdbf67428855a3668dde560409f83919710ace553f3dd0592a7bc24",
+    "zh:937d2b002948f7d2ea391624a182a50648a4b8d9daf70d6718a3574659f34ebf",
+    "zh:cee2d658160d2ee5a59aaee1009addd867ddf17c1e9a33ca1bb3010b7cb173ef",
+    "zh:df16280e9ad3b542f7690ea7bcd0e20a52c520cd300e00f44b1817dabac66c92",
   ]
 }
 
