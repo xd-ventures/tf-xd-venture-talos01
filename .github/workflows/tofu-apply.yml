@@ -32,7 +32,7 @@ jobs:
   apply:
     name: Apply
     if: vars.GITOPS_ENABLED == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     environment: production
     permissions:

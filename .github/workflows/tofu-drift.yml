@@ -33,7 +33,7 @@ jobs:
   drift:
     name: Drift Detection
     if: vars.GITOPS_ENABLED == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: production
     permissions:
