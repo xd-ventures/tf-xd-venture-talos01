@@ -40,7 +40,7 @@ jobs:
   offsite:
     name: Replicate to B2
     if: github.event_name == 'workflow_dispatch' || vars.GITOPS_ENABLED == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     environment: production
     env:
