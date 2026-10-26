@@ -54,7 +54,7 @@ jobs:
       # Refresh may need to reach the Talos/K8s APIs, which are only
       # reachable over Tailscale (firewall enabled).
       - name: Connect Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
@@ -72,7 +72,7 @@ jobs:
           chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu plan
-        uses: dflook/tofu-plan@c7416238983bdd94c5486fb856bb7358f2bcc935 # v3.1.0
+        uses: dflook/tofu-plan@53b5b01b6eef56cd678401dbe92a0f6ca6b863ff # v3.1.2
         with:
           label: talos01
           path: infra

@@ -57,7 +57,7 @@ jobs:
       # Applying machine-config changes requires reaching the Talos API,
       # which is only reachable over Tailscale (firewall enabled).
       - name: Connect Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
@@ -73,7 +73,7 @@ jobs:
           chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu apply
-        uses: dflook/tofu-apply@e3e5dfc8f935d4b152c767801046f63abf8a77d3 # v3.1.0
+        uses: dflook/tofu-apply@1de081df5087fb9ba2acf4866e9bc9b95f79676c # v3.1.2
         with:
           label: talos01
           path: infra
