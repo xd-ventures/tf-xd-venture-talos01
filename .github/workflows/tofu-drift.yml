@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Connect Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4
         with:
           oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Tofu check
         id: check
-        uses: dflook/tofu-check@7858ec7b5db9a26787fb7cb9b451f4383da1c5c8 # v3.1.0
+        uses: dflook/tofu-check@63e819ef7b1214e091160d0d57878ca75a5f7a2a # v3.1.2
         with:
           # tofu-check does not accept a `label` input (unlike tofu-plan/apply)
           path: infra
