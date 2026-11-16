@@ -73,7 +73,7 @@ jobs:
           chmod 600 infra/backend.tfvars infra/terraform.tfvars
 
       - name: Tofu apply
-        uses: dflook/tofu-apply@1de081df5087fb9ba2acf4866e9bc9b95f79676c # v3.1.2
+        uses: dflook/tofu-apply@cf65a333228c1a4faa7f95bdd4328bf17513e638 # v3.1.3
         with:
           label: talos01
           path: infra

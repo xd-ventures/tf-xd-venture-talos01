@@ -73,7 +73,7 @@ jobs:
 
       - name: Tofu check
         id: check
-        uses: dflook/tofu-check@63e819ef7b1214e091160d0d57878ca75a5f7a2a # v3.1.2
+        uses: dflook/tofu-check@f2df6c7eb3317b851fcb85fd4d49c93a14323531 # v3.1.3
         with:
           # tofu-check does not accept a `label` input (unlike tofu-plan/apply)
           path: infra
